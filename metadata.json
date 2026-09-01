@@ -1,0 +1,6 @@
+{
+  "name": "Quản Lý Công Nhân Ký Túc Xá",
+  "description": "Hệ thống quản lý công nhân KTX phân cấp Khu - Dãy - Phòng với lưu trữ bảo mật đám mây Google Firebase Firestore, quét mã QR CCCD và tìm kiếm không dấu.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

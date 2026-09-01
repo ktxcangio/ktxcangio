@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "Worker": {
+      "title": "Worker",
+      "description": "Thông tin chi tiết công nhân ký túc xá với 8 trường dữ liệu và vị trí phòng",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID duy nhất của công nhân" },
+        "code": { "type": "string", "description": "1. Mã nhân viên", "maxLength": 50 },
+        "fullName": { "type": "string", "description": "2. Họ và tên công nhân", "maxLength": 100 },
+        "gender": { "type": "string", "enum": ["Nam", "Nữ"], "description": "3. Giới tính" },
+        "birthDate": { "type": "string", "description": "4. Ngày tháng năm sinh (YYYY-MM-DD)" },
+        "address": { "type": "string", "description": "5. Thôn/số nhà, Xã/Phường, Tỉnh/Thành Phố", "maxLength": 255 },
+        "citizenId": { "type": "string", "description": "6. Số CCCD (lấy từ quét QR hoặc nhập tay)", "maxLength": 20 },
+        "teamLeaderName": { "type": "string", "description": "7. Tên tổ trưởng", "maxLength": 100 },
+        "teamLeaderPhone": { "type": "string", "description": "8. SĐT tổ trưởng", "maxLength": 20 },
+        "zoneId": { "type": "string", "description": "ID Khu (A, B, C, D...)" },
+        "blockId": { "type": "string", "description": "ID Dãy nhà" },
+        "roomId": { "type": "string", "description": "ID Phòng (tối đa 20 người)" },
+        "bedNumber": { "type": "number", "description": "Số giường (1-20)" },
+        "lockerNumber": { "type": "number", "description": "Số tủ đồ cá nhân" },
+        "status": { "type": "string", "enum": ["active", "temporary_leave"] },
+        "notes": { "type": "string", "maxLength": 500 },
+        "avatarColor": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["code", "fullName", "gender", "citizenId", "zoneId", "blockId", "roomId", "bedNumber"]
+    },
+    "StructureZone": {
+      "title": "StructureZone",
+      "description": "Khu KTX (A, B, C, D, ...)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "description": { "type": "string" },
+        "blocks": { "type": "array" }
+      },
+      "required": ["id", "name", "code"]
+    }
+  },
+  "firestore": {
+    "/workers/{workerId}": {
+      "schema": "Worker",
+      "description": "Danh sách hồ sơ công nhân lưu trữ bảo mật trên Google Cloud Firestore"
+    },
+    "/zones/{zoneId}": {
+      "schema": "StructureZone",
+      "description": "Cấu hình phân vùng Khu, Dãy, Phòng linh hoạt"
+    }
+  }
+}
