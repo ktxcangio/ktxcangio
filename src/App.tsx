@@ -25,6 +25,8 @@ import { TransferWorkerModal } from './components/TransferWorkerModal';
 import { WorkerDetailModal } from './components/WorkerDetailModal';
 import { StructureManagerModal } from './components/StructureManagerModal';
 import { StatsDashboard } from './components/StatsDashboard';
+import { GoogleDriveModal } from './components/GoogleDriveModal';
+import { googleDriveService } from './services/googleDriveService';
 import { 
   subscribeWorkers, 
   saveWorkerToFirestore, 
@@ -36,7 +38,7 @@ import {
   seedZonesIfEmpty,
   testFirestoreConnection
 } from './services/firestoreService';
-import { Cloud, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Cloud, CheckCircle2, AlertCircle, RefreshCw, HardDrive } from 'lucide-react';
 
 export default function App() {
   // 1. Quản lý dữ liệu Khu, Dãy, Phòng và Công nhân
@@ -141,12 +143,28 @@ export default function App() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isWorkerModalOpen, setIsWorkerModalOpen] = useState<boolean>(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState<boolean>(false);
+  const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState<boolean>(false);
+  const [isDriveConnected, setIsDriveConnected] = useState<boolean>(false);
   const [workerToEdit, setWorkerToEdit] = useState<Worker | null>(null);
   const [modalInitialRoomId, setModalInitialRoomId] = useState<string | undefined>(undefined);
   const [modalInitialBedNumber, setModalInitialBedNumber] = useState<number | undefined>(undefined);
 
   const [workerToTransfer, setWorkerToTransfer] = useState<Worker | null>(null);
   const [workerToViewProfile, setWorkerToViewProfile] = useState<Worker | null>(null);
+
+  // Check Drive connection state
+  useEffect(() => {
+    setIsDriveConnected(googleDriveService.isConnected());
+  }, [isGoogleDriveModalOpen]);
+
+  // Helper auto-sync to Google Drive if connected and enabled
+  const triggerBackgroundDriveSync = (updatedWorkers: Worker[], updatedZones: Zone[]) => {
+    if (googleDriveService.isConnected() && googleDriveService.getAutoSyncSetting()) {
+      googleDriveService.syncDataToDrive(updatedWorkers, updatedZones, false).catch((err) => {
+        console.warn('Auto sync Google Drive in background error:', err);
+      });
+    }
+  };
 
   // 4. Lọc danh sách công nhân theo Search (không dấu) & Filter
   const filteredWorkers = useMemo(() => {
@@ -252,6 +270,12 @@ export default function App() {
     try {
       await saveWorkerToFirestore(updatedWorker);
       setSyncStatus('synced');
+      triggerBackgroundDriveSync(
+        workerToEdit
+          ? workers.map(w => w.id === updatedWorker.id ? updatedWorker : w)
+          : [updatedWorker, ...workers],
+        zones
+      );
     } catch (err) {
       console.error('Lỗi khi lưu lên Firestore:', err);
       setSyncStatus('offline');
@@ -265,13 +289,15 @@ export default function App() {
     if (confirm) {
       setSyncStatus('syncing');
       // Optimistic delete
-      setWorkers(prev => prev.filter(w => w.id !== worker.id));
+      const remainingWorkers = workers.filter(w => w.id !== worker.id);
+      setWorkers(remainingWorkers);
       if (workerToViewProfile?.id === worker.id) {
         setWorkerToViewProfile(null);
       }
       try {
         await deleteWorkerFromFirestore(worker.id);
         setSyncStatus('synced');
+        triggerBackgroundDriveSync(remainingWorkers, zones);
       } catch (err) {
         console.error('Lỗi khi xóa trên Firestore:', err);
       }
@@ -299,11 +325,13 @@ export default function App() {
     };
 
     // Optimistic UI update
-    setWorkers(prev => prev.map(w => w.id === workerId ? transferred : w));
+    const updatedList = workers.map(w => w.id === workerId ? transferred : w);
+    setWorkers(updatedList);
 
     try {
       await saveWorkerToFirestore(transferred);
       setSyncStatus('synced');
+      triggerBackgroundDriveSync(updatedList, zones);
     } catch (err) {
       console.error('Lỗi khi đổi phòng trên Firestore:', err);
     }
@@ -325,10 +353,27 @@ export default function App() {
         await saveZoneToFirestore(zone);
       }
       setSyncStatus('synced');
+      triggerBackgroundDriveSync(workers, newZones);
     } catch (err) {
       console.error('Lỗi khi lưu cấu trúc KTX lên Firestore:', err);
       setSyncStatus('offline');
     }
+  };
+
+  // Xử lý khi khôi phục dữ liệu từ Google Drive
+  const handleDataRestoredFromDrive = async (restoredWorkers: Worker[], restoredZones: Zone[]) => {
+    setSyncStatus('syncing');
+    setWorkers(restoredWorkers);
+    if (restoredZones && restoredZones.length > 0) {
+      setZones(restoredZones);
+      for (const z of restoredZones) {
+        await saveZoneToFirestore(z);
+      }
+    }
+    for (const w of restoredWorkers) {
+      await saveWorkerToFirestore(w);
+    }
+    setSyncStatus('synced');
   };
 
   // Khôi phục dữ liệu mẫu
@@ -427,23 +472,34 @@ export default function App() {
         }}
         onExportCSV={handleExportCSV}
         onResetData={handleResetData}
+        onOpenGoogleDrive={() => setIsGoogleDriveModalOpen(true)}
+        isDriveConnected={isDriveConnected}
       />
 
       {/* Cloud Persistence & Realtime Indicator Bar */}
       <div className="bg-slate-800 text-slate-300 text-xs px-4 py-1.5 flex items-center justify-between border-b border-slate-700">
         <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
               <Cloud className="w-3.5 h-3.5" />
-              <span>Google Cloud Firestore:</span>
+              <span>Google Cloud:</span>
             </span>
             <span className="hidden sm:inline text-slate-300">
-              Dữ liệu được lưu trữ và bảo mật bởi Google • Đa thiết bị đồng bộ thời gian thực
+              Lưu trữ Firestore & Tự động sao lưu Google Drive
             </span>
             <span className="sm:hidden text-slate-300">Đồng bộ đám mây</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Quick Drive Button */}
+            <button
+              onClick={() => setIsGoogleDriveModalOpen(true)}
+              className="inline-flex items-center gap-1 text-[11px] text-slate-300 hover:text-white px-2 py-0.5 rounded bg-slate-700/60 hover:bg-slate-700 cursor-pointer transition-colors"
+            >
+              <HardDrive className={`w-3 h-3 ${isDriveConnected ? 'text-emerald-400' : 'text-blue-400'}`} />
+              <span>{isDriveConnected ? 'Drive: Đã kết nối' : 'Kết nối Drive'}</span>
+            </button>
+
             {syncStatus === 'syncing' && (
               <span className="flex items-center gap-1 text-amber-300">
                 <RefreshCw className="w-3 h-3 animate-spin" />
@@ -612,6 +668,16 @@ export default function App() {
         workers={workers}
         onClose={() => setIsStructureModalOpen(false)}
         onSaveZones={handleSaveZones}
+      />
+
+      {/* Modal 6: Lưu trữ & Sao lưu Google Drive */}
+      <GoogleDriveModal
+        isOpen={isGoogleDriveModalOpen}
+        onClose={() => setIsGoogleDriveModalOpen(false)}
+        workers={workers}
+        zones={zones}
+        onDataRestored={handleDataRestoredFromDrive}
+        onSyncCompleted={() => setIsDriveConnected(true)}
       />
     </div>
   );
