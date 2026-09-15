@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -7,9 +7,12 @@ import firebaseConfig from '../firebase-applet-config.json';
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 
-// Initialize Cloud Firestore using the configured database ID if present
+// Initialize Cloud Firestore with auto-detect long polling for resilient connection on web/mobile
 const configWithDb = firebaseConfig as typeof firebaseConfig & { firestoreDatabaseId?: string };
-export const db = configWithDb.firestoreDatabaseId && configWithDb.firestoreDatabaseId !== '(default)'
-  ? getFirestore(app, configWithDb.firestoreDatabaseId)
-  : getFirestore(app);
+const databaseId = configWithDb.firestoreDatabaseId && configWithDb.firestoreDatabaseId !== '(default)'
+  ? configWithDb.firestoreDatabaseId
+  : undefined;
 
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+}, databaseId);

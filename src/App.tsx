@@ -25,8 +25,6 @@ import { TransferWorkerModal } from './components/TransferWorkerModal';
 import { WorkerDetailModal } from './components/WorkerDetailModal';
 import { StructureManagerModal } from './components/StructureManagerModal';
 import { StatsDashboard } from './components/StatsDashboard';
-import { GoogleDriveModal } from './components/GoogleDriveModal';
-import { googleDriveService } from './services/googleDriveService';
 import { 
   subscribeWorkers, 
   saveWorkerToFirestore, 
@@ -35,16 +33,14 @@ import {
   subscribeZones,
   saveZoneToFirestore,
   deleteZoneFromFirestore,
-  seedZonesIfEmpty,
-  testFirestoreConnection
+  seedZonesIfEmpty
 } from './services/firestoreService';
-import { Cloud, CheckCircle2, AlertCircle, RefreshCw, HardDrive } from 'lucide-react';
+import { Cloud, CheckCircle2, AlertCircle, RefreshCw, Database } from 'lucide-react';
 
 export default function App() {
   // 1. Quản lý dữ liệu Khu, Dãy, Phòng và Công nhân
   const [zones, setZones] = useState<Zone[]>(ZONES_DATA);
   const [workers, setWorkers] = useState<Worker[]>(INITIAL_WORKERS);
-  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('synced');
 
@@ -57,37 +53,39 @@ export default function App() {
     let unsubscribeZones: (() => void) | undefined;
 
     async function initFirestore() {
-      setIsLoading(true);
       setSyncStatus('syncing');
       
-      const connected = await testFirestoreConnection();
-      setIsCloudConnected(connected);
+      // Load local cache immediately for instant interactive UI
+      try {
+        const savedWorkers = localStorage.getItem(STORAGE_KEY_WORKERS);
+        if (savedWorkers) {
+          const parsed = JSON.parse(savedWorkers);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setWorkers(parsed);
+            setIsLoading(false);
+          }
+        }
+      } catch (e) {
+        console.error('LocalStorage read error:', e);
+      }
 
-      // Seed initial data if Firestore is empty
-      await seedZonesIfEmpty();
-      await seedInitialDataIfEmpty();
-
-      // Subscribe to Realtime Updates
+      // Subscribe to Realtime Updates immediately
       unsubscribeWorkers = subscribeWorkers(
         (updatedWorkers) => {
-          setWorkers(updatedWorkers);
+          if (updatedWorkers.length > 0) {
+            setWorkers(updatedWorkers);
+            try {
+              localStorage.setItem(STORAGE_KEY_WORKERS, JSON.stringify(updatedWorkers));
+            } catch (e) {
+              console.error('LocalStorage write error:', e);
+            }
+          }
           setIsLoading(false);
           setSyncStatus('synced');
-          // Backup to local storage
-          try {
-            localStorage.setItem(STORAGE_KEY_WORKERS, JSON.stringify(updatedWorkers));
-          } catch (e) {
-            console.error('LocalStorage write error:', e);
-          }
         },
         (err) => {
           console.warn('Firestore workers stream warning:', err);
           setSyncStatus('offline');
-          // Fallback to local storage if network glitch
-          try {
-            const saved = localStorage.getItem(STORAGE_KEY_WORKERS);
-            if (saved) setWorkers(JSON.parse(saved));
-          } catch (e) {}
           setIsLoading(false);
         }
       );
@@ -102,6 +100,14 @@ export default function App() {
           console.warn('Firestore zones stream warning:', err);
         }
       );
+
+      // Seed initial data in background if Firestore is empty
+      try {
+        await seedZonesIfEmpty();
+        await seedInitialDataIfEmpty();
+      } catch (err) {
+        console.warn('Firestore background seed notice:', err);
+      }
     }
 
     initFirestore();
@@ -143,28 +149,12 @@ export default function App() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isWorkerModalOpen, setIsWorkerModalOpen] = useState<boolean>(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState<boolean>(false);
-  const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState<boolean>(false);
-  const [isDriveConnected, setIsDriveConnected] = useState<boolean>(false);
   const [workerToEdit, setWorkerToEdit] = useState<Worker | null>(null);
   const [modalInitialRoomId, setModalInitialRoomId] = useState<string | undefined>(undefined);
   const [modalInitialBedNumber, setModalInitialBedNumber] = useState<number | undefined>(undefined);
 
   const [workerToTransfer, setWorkerToTransfer] = useState<Worker | null>(null);
   const [workerToViewProfile, setWorkerToViewProfile] = useState<Worker | null>(null);
-
-  // Check Drive connection state
-  useEffect(() => {
-    setIsDriveConnected(googleDriveService.isConnected());
-  }, [isGoogleDriveModalOpen]);
-
-  // Helper auto-sync to Google Drive if connected and enabled
-  const triggerBackgroundDriveSync = (updatedWorkers: Worker[], updatedZones: Zone[]) => {
-    if (googleDriveService.isConnected() && googleDriveService.getAutoSyncSetting()) {
-      googleDriveService.syncDataToDrive(updatedWorkers, updatedZones, false).catch((err) => {
-        console.warn('Auto sync Google Drive in background error:', err);
-      });
-    }
-  };
 
   // 4. Lọc danh sách công nhân theo Search (không dấu) & Filter
   const filteredWorkers = useMemo(() => {
@@ -270,12 +260,6 @@ export default function App() {
     try {
       await saveWorkerToFirestore(updatedWorker);
       setSyncStatus('synced');
-      triggerBackgroundDriveSync(
-        workerToEdit
-          ? workers.map(w => w.id === updatedWorker.id ? updatedWorker : w)
-          : [updatedWorker, ...workers],
-        zones
-      );
     } catch (err) {
       console.error('Lỗi khi lưu lên Firestore:', err);
       setSyncStatus('offline');
@@ -297,7 +281,6 @@ export default function App() {
       try {
         await deleteWorkerFromFirestore(worker.id);
         setSyncStatus('synced');
-        triggerBackgroundDriveSync(remainingWorkers, zones);
       } catch (err) {
         console.error('Lỗi khi xóa trên Firestore:', err);
       }
@@ -331,7 +314,6 @@ export default function App() {
     try {
       await saveWorkerToFirestore(transferred);
       setSyncStatus('synced');
-      triggerBackgroundDriveSync(updatedList, zones);
     } catch (err) {
       console.error('Lỗi khi đổi phòng trên Firestore:', err);
     }
@@ -353,27 +335,10 @@ export default function App() {
         await saveZoneToFirestore(zone);
       }
       setSyncStatus('synced');
-      triggerBackgroundDriveSync(workers, newZones);
     } catch (err) {
       console.error('Lỗi khi lưu cấu trúc KTX lên Firestore:', err);
       setSyncStatus('offline');
     }
-  };
-
-  // Xử lý khi khôi phục dữ liệu từ Google Drive
-  const handleDataRestoredFromDrive = async (restoredWorkers: Worker[], restoredZones: Zone[]) => {
-    setSyncStatus('syncing');
-    setWorkers(restoredWorkers);
-    if (restoredZones && restoredZones.length > 0) {
-      setZones(restoredZones);
-      for (const z of restoredZones) {
-        await saveZoneToFirestore(z);
-      }
-    }
-    for (const w of restoredWorkers) {
-      await saveWorkerToFirestore(w);
-    }
-    setSyncStatus('synced');
   };
 
   // Khôi phục dữ liệu mẫu
@@ -472,44 +437,32 @@ export default function App() {
         }}
         onExportCSV={handleExportCSV}
         onResetData={handleResetData}
-        onOpenGoogleDrive={() => setIsGoogleDriveModalOpen(true)}
-        isDriveConnected={isDriveConnected}
       />
 
       {/* Cloud Persistence & Realtime Indicator Bar */}
       <div className="bg-slate-800 text-slate-300 text-xs px-4 py-1.5 flex items-center justify-between border-b border-slate-700">
         <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
-              <Cloud className="w-3.5 h-3.5" />
-              <span>Google Cloud:</span>
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 text-blue-400 font-medium">
+              <Database className="w-3.5 h-3.5" />
+              <span>Google Cloud Firestore:</span>
             </span>
-            <span className="hidden sm:inline text-slate-300">
-              Lưu trữ Firestore & Tự động sao lưu Google Drive
+            <span className="text-slate-300">
+              Cơ sở dữ liệu thời gian thực ({workers.length} hồ sơ)
             </span>
-            <span className="sm:hidden text-slate-300">Đồng bộ đám mây</span>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Quick Drive Button */}
-            <button
-              onClick={() => setIsGoogleDriveModalOpen(true)}
-              className="inline-flex items-center gap-1 text-[11px] text-slate-300 hover:text-white px-2 py-0.5 rounded bg-slate-700/60 hover:bg-slate-700 cursor-pointer transition-colors"
-            >
-              <HardDrive className={`w-3 h-3 ${isDriveConnected ? 'text-emerald-400' : 'text-blue-400'}`} />
-              <span>{isDriveConnected ? 'Drive: Đã kết nối' : 'Kết nối Drive'}</span>
-            </button>
-
             {syncStatus === 'syncing' && (
               <span className="flex items-center gap-1 text-amber-300">
                 <RefreshCw className="w-3 h-3 animate-spin" />
-                <span>Đang đồng bộ...</span>
+                <span>Đang đồng bộ Firestore...</span>
               </span>
             )}
             {syncStatus === 'synced' && (
               <span className="flex items-center gap-1 text-emerald-400">
                 <CheckCircle2 className="w-3 h-3" />
-                <span>Đã lưu an toàn</span>
+                <span>Đã lưu an toàn trên Firestore</span>
               </span>
             )}
             {syncStatus === 'offline' && (
@@ -668,16 +621,6 @@ export default function App() {
         workers={workers}
         onClose={() => setIsStructureModalOpen(false)}
         onSaveZones={handleSaveZones}
-      />
-
-      {/* Modal 6: Lưu trữ & Sao lưu Google Drive */}
-      <GoogleDriveModal
-        isOpen={isGoogleDriveModalOpen}
-        onClose={() => setIsGoogleDriveModalOpen(false)}
-        workers={workers}
-        zones={zones}
-        onDataRestored={handleDataRestoredFromDrive}
-        onSyncCompleted={() => setIsDriveConnected(true)}
       />
     </div>
   );

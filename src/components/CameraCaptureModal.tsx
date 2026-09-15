@@ -9,29 +9,39 @@ import {
   Smartphone, 
   AlertCircle, 
   Sparkles,
-  Zap
+  Zap,
+  CreditCard
 } from 'lucide-react';
-import { captureVideoFrameToDataUrl, compressAndCropImage, fileToDataUrl } from '../utils/imageUtils';
+import { 
+  captureVideoFrameToCardDataUrl, 
+  compressCardImage, 
+  fileToDataUrl 
+} from '../utils/imageUtils';
 
 interface CameraCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCapture: (photoBase64: string) => void;
-  workerName?: string;
+  title?: string;
+  subtitle?: string;
+  cardSide?: 'front' | 'back' | 'single';
 }
 
 export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   isOpen,
   onClose,
   onCapture,
-  workerName = 'công nhân'
+  title = 'Chụp Thẻ Căn Cước Công Dân (CCCD)',
+  subtitle,
+  cardSide = 'front'
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const nativeCameraInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  // Default to rear camera for photographing physical ID cards
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [errorType, setErrorType] = useState<'permission' | 'unsupported' | 'general' | null>(null);
@@ -143,10 +153,10 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     }
 
     setIsProcessing(true);
-    const rawDataUrl = captureVideoFrameToDataUrl(videoRef.current, 400, 0.85);
+    const rawDataUrl = captureVideoFrameToCardDataUrl(videoRef.current, 850, 540, 0.85);
 
     if (rawDataUrl) {
-      const compressed = await compressAndCropImage(rawDataUrl, 400, 400, 0.85);
+      const compressed = await compressCardImage(rawDataUrl, 850, 540, 0.85);
       setPreviewPhoto(compressed);
       stopCamera();
     } else {
@@ -199,7 +209,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     setErrorMessage('');
     try {
       const rawData = await fileToDataUrl(file);
-      const compressed = await compressAndCropImage(rawData, 400, 400, 0.85);
+      const compressed = await compressCardImage(rawData, 850, 540, 0.85);
       setPreviewPhoto(compressed);
       stopCamera();
     } catch (err) {
@@ -213,24 +223,26 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   if (!isOpen) return null;
 
+  const displaySubtitle = subtitle || (cardSide === 'front' ? 'Chụp mặt trước thẻ Căn Cước' : cardSide === 'back' ? 'Chụp mặt sau thẻ Căn Cước' : 'Đặt thẻ Căn Cước vào khung');
+
   return (
     <div className="fixed inset-0 z-70 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
       <div 
         id="modal-camera-capture"
-        className="bg-slate-900 text-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700 flex flex-col"
+        className="bg-slate-900 text-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-700 flex flex-col"
       >
         {/* Header */}
         <div className="p-4 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md">
-              <Camera className="w-5 h-5" />
+              <CreditCard className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-white">
-                Chụp Ảnh Chân Dung
+                {title}
               </h3>
               <p className="text-xs text-slate-400">
-                Hồ sơ: {workerName}
+                {displaySubtitle}
               </p>
             </div>
           </div>
@@ -255,14 +267,14 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
           ref={nativeCameraInputRef}
           type="file"
           accept="image/*"
-          capture="user"
+          capture="environment"
           className="hidden"
           onChange={handleFileUpload}
         />
 
-        {/* Body Viewport */}
+        {/* Body Viewport - Tỷ lệ khung thẻ Căn Cước Công Dân (85:54) */}
         <div className="p-4 sm:p-6 space-y-4">
-          <div className="relative aspect-square w-full max-w-xs mx-auto bg-black rounded-3xl overflow-hidden border-2 border-slate-700 shadow-inner flex items-center justify-center">
+          <div className="relative aspect-[85/54] w-full max-w-md mx-auto bg-black rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-slate-700 shadow-inner flex items-center justify-center">
             {/* Flash Effect overlay */}
             {flashEffect && (
               <div className="absolute inset-0 bg-white z-20 animate-out fade-out duration-200 pointer-events-none" />
@@ -282,12 +294,12 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <div className="relative w-full h-full">
                 <img
                   src={previewPhoto}
-                  alt="Ảnh chân dung đã chụp"
+                  alt="Ảnh thẻ Căn cước công dân đã chụp"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-3 left-3 bg-emerald-600/90 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 backdrop-blur-xs">
                   <Check className="w-3.5 h-3.5" />
-                  <span>Ảnh đã chụp</span>
+                  <span>Ảnh CCCD đã chụp</span>
                 </div>
               </div>
             ) : (
@@ -301,13 +313,25 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                   className={`w-full h-full object-cover ${!isCameraActive ? 'hidden' : ''}`}
                 />
 
-                {/* Khung hướng dẫn khuôn mặt (Portrait Guide Frame) */}
+                {/* Khung hướng dẫn định vị thẻ CCCD (Card Guide Frame) */}
                 {isCameraActive && (
-                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6">
-                    {/* Vòng oval canh khuôn mặt */}
-                    <div className="w-48 h-60 sm:w-56 sm:h-64 border-2 border-dashed border-blue-400/80 rounded-[45%] shadow-[0_0_20px_rgba(59,130,246,0.3)] relative">
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap shadow-xs">
-                        Khuôn mặt
+                  <div className="absolute inset-0 pointer-events-none p-3 sm:p-5 flex flex-col justify-between">
+                    {/* 4 góc định vị thẻ căn cước */}
+                    <div className="w-full h-full border-2 border-dashed border-emerald-400/80 rounded-xl relative flex flex-col items-center justify-between p-2 shadow-[0_0_25px_rgba(16,185,129,0.25)]">
+                      {/* Top badge */}
+                      <div className="bg-emerald-600/90 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                        <CreditCard className="w-3 h-3" />
+                        <span>KHUNG CĂN CƯỚC CÔNG DÂN</span>
+                      </div>
+
+                      {/* Center helper */}
+                      <div className="text-center text-white/90 text-xs font-semibold drop-shadow-md bg-black/40 px-3 py-1 rounded-lg">
+                        Đặt thẻ CCCD thẳng hàng trong khung này
+                      </div>
+
+                      {/* Bottom guide */}
+                      <div className="text-[10px] text-emerald-300 font-medium bg-slate-950/70 px-2.5 py-0.5 rounded-full">
+                        Giữ máy cố định, đủ sáng, không bị bóng lóa
                       </div>
                     </div>
                   </div>
@@ -449,8 +473,8 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
         {/* Footer */}
         <div className="p-3.5 bg-slate-800/80 border-t border-slate-700 flex items-center justify-between text-xs text-slate-400">
           <span className="flex items-center gap-1 text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-            Tự động nén & căn chỉnh chân dung
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            Tự động nén & căn chỉnh thẻ CCCD sắc nét
           </span>
           <button
             type="button"

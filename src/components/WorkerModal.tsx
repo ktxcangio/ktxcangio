@@ -14,13 +14,15 @@ import {
   Upload,
   Trash2,
   Image as ImageIcon,
-  Smartphone
+  Smartphone,
+  CreditCard,
+  Eye
 } from 'lucide-react';
 import { Worker, Zone, Room, QrParsedCCCD } from '../types';
 import { AVATAR_COLORS } from '../data/dormitoryData';
 import { QrScannerModal } from './QrScannerModal';
 import { CameraCaptureModal } from './CameraCaptureModal';
-import { fileToDataUrl, compressAndCropImage } from '../utils/imageUtils';
+import { fileToDataUrl, compressCardImage } from '../utils/imageUtils';
 
 interface WorkerModalProps {
   isOpen: boolean;
@@ -84,14 +86,20 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
 
   // Scanner & Camera modal states
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
-  const [isCameraCaptureOpen, setIsCameraCaptureOpen] = useState(false);
+  const [activeCaptureSide, setActiveCaptureSide] = useState<'front' | 'back' | null>(null);
+  const [previewModalImage, setPreviewModalImage] = useState<{ url: string; title: string } | null>(null);
   const [qrNotification, setQrNotification] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Ảnh chân dung công nhân (base64)
-  const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const nativeCameraInputRef = useRef<HTMLInputElement | null>(null);
+  // Ảnh Thẻ Căn Cước Công Dân (CCCD)
+  const [idCardFrontUrl, setIdCardFrontUrl] = useState<string | undefined>(undefined);
+  const [idCardBackUrl, setIdCardBackUrl] = useState<string | undefined>(undefined);
+
+  // Native camera & file input refs cho 2 mặt thẻ CCCD
+  const frontFileInputRef = useRef<HTMLInputElement | null>(null);
+  const frontNativeCameraRef = useRef<HTMLInputElement | null>(null);
+  const backFileInputRef = useRef<HTMLInputElement | null>(null);
+  const backNativeCameraRef = useRef<HTMLInputElement | null>(null);
 
   // Sync state when modal opens or worker changes
   useEffect(() => {
@@ -104,7 +112,8 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
       setCitizenId(worker.citizenId || '');
       setTeamLeaderName(worker.teamLeaderName || '');
       setTeamLeaderPhone(worker.teamLeaderPhone || '');
-      setPhotoUrl(worker.photoUrl || undefined);
+      setIdCardFrontUrl(worker.idCardFrontUrl || worker.idCardUrl || undefined);
+      setIdCardBackUrl(worker.idCardBackUrl || undefined);
       setZoneId(worker.zoneId || zones[0]?.id || '');
       setBlockId(worker.blockId || '');
       setRoomId(worker.roomId || '');
@@ -123,7 +132,8 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
       setCitizenId('');
       setTeamLeaderName('');
       setTeamLeaderPhone('');
-      setPhotoUrl(undefined);
+      setIdCardFrontUrl(undefined);
+      setIdCardBackUrl(undefined);
       
       const targetZoneId = defaultZoneId || zones[0]?.id || '';
       setZoneId(targetZoneId);
@@ -157,17 +167,21 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
     setQrNotification(null);
   }, [isOpen, worker, defaultZoneId, defaultBlockId, defaultRoomId, effectiveDefaultRoomId, initialBedNumber, zones, existingWorkers]);
 
-  // Xử lý ảnh tải lên từ input file
-  const handlePhotoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Xử lý ảnh thẻ CCCD tải lên từ input file
+  const handleCardFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const rawData = await fileToDataUrl(file);
-      const compressed = await compressAndCropImage(rawData, 400, 400, 0.85);
-      setPhotoUrl(compressed);
+      const compressed = await compressCardImage(rawData, 850, 540, 0.85);
+      if (side === 'front') {
+        setIdCardFrontUrl(compressed);
+      } else {
+        setIdCardBackUrl(compressed);
+      }
     } catch (err) {
-      console.error('Lỗi nén ảnh:', err);
-      setErrorMsg('Không thể xử lý ảnh tải lên. Vui lòng thử lại.');
+      console.error('Lỗi nén ảnh thẻ CCCD:', err);
+      setErrorMsg('Không thể xử lý tệp hình ảnh CCCD vừa chọn. Vui lòng thử lại.');
     } finally {
       e.target.value = '';
     }
@@ -264,7 +278,10 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
       citizenId: citizenId.trim(),
       teamLeaderName: teamLeaderName.trim(),
       teamLeaderPhone: teamLeaderPhone.trim(),
-      photoUrl: photoUrl || undefined,
+      idCardFrontUrl: idCardFrontUrl || undefined,
+      idCardBackUrl: idCardBackUrl || undefined,
+      idCardUrl: idCardFrontUrl || idCardBackUrl || undefined,
+      photoUrl: worker?.photoUrl || undefined,
       zoneId,
       blockId,
       roomId,
@@ -293,7 +310,7 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
           <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md">
-                <User className="w-5 h-5" />
+                <CreditCard className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-white">
@@ -312,21 +329,36 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
             </button>
           </div>
 
-          {/* Hidden File Inputs for Photo */}
+          {/* Hidden File Inputs for CCCD Front & Back */}
           <input
-            ref={fileInputRef}
+            ref={frontFileInputRef}
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={handlePhotoFileUpload}
+            onChange={(e) => handleCardFileUpload(e, 'front')}
           />
           <input
-            ref={nativeCameraInputRef}
+            ref={frontNativeCameraRef}
             type="file"
             accept="image/*"
-            capture="user"
+            capture="environment"
             className="hidden"
-            onChange={handlePhotoFileUpload}
+            onChange={(e) => handleCardFileUpload(e, 'front')}
+          />
+          <input
+            ref={backFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleCardFileUpload(e, 'back')}
+          />
+          <input
+            ref={backNativeCameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => handleCardFileUpload(e, 'back')}
           />
 
           {/* Form */}
@@ -376,90 +408,190 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
               </button>
             </div>
 
-            {/* PHẦN ẢNH CHÂN DUNG CÔNG NHÂN */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-center gap-4">
-              {/* Avatar / Portrait Preview */}
-              <div className="relative group shrink-0">
-                {photoUrl ? (
-                  <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl overflow-hidden border-2 border-blue-500 shadow-md relative bg-slate-900">
-                    <img
-                      src={photoUrl}
-                      alt="Ảnh chân dung công nhân"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPhotoUrl(undefined)}
-                      title="Xóa ảnh này"
-                      className="absolute top-1 right-1 p-1 bg-rose-600/90 hover:bg-rose-700 text-white rounded-lg opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 gap-1 shadow-inner">
-                    <User className="w-7 h-7 text-slate-300" />
-                    <span className="text-[10px] font-semibold text-slate-400">Chưa có ảnh</span>
-                  </div>
-                )}
+            {/* PHẦN ẢNH THẺ CĂN CƯỚC CÔNG DÂN (CCCD) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Ảnh Thẻ Căn Cước Công Dân (CCCD)
+                  </h4>
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Chụp hoặc tải ảnh 2 mặt thẻ CCCD
+                </span>
               </div>
 
-              {/* Actions */}
-              <div className="flex-1 text-center sm:text-left space-y-1.5 w-full">
-                <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
-                  <Camera className="w-4 h-4 text-blue-600" />
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Ảnh Chân Dung Công Nhân
-                  </h4>
-                  {photoUrl && (
-                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Check className="w-3 h-3" />
-                      Đã lưu ảnh
+              {/* Grid 2 thẻ: Mặt trước và Mặt sau */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* 1. Mặt trước CCCD */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Mặt trước CCCD
                     </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Chụp ảnh trực tiếp từ camera hoặc tải ảnh chân dung công nhân để lưu vào hồ sơ.
-                </p>
+                    {idCardFrontUrl ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        Đã chụp
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium">Chưa có ảnh</span>
+                    )}
+                  </div>
 
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setIsCameraCaptureOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>{photoUrl ? 'Chụp lại ảnh' : 'Chụp ảnh trực tiếp'}</span>
-                  </button>
+                  {/* Card Frame Preview */}
+                  <div className="relative aspect-[85/54] w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center group shadow-inner">
+                    {idCardFrontUrl ? (
+                      <>
+                        <img
+                          src={idCardFrontUrl}
+                          alt="Mặt trước CCCD"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewModalImage({ url: idCardFrontUrl, title: 'Ảnh Mặt Trước Thẻ CCCD' })}
+                            className="p-2 bg-white/90 hover:bg-white text-slate-900 rounded-xl transition-all shadow-md cursor-pointer"
+                            title="Xem phóng to"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIdCardFrontUrl(undefined)}
+                            className="p-2 bg-rose-600/90 hover:bg-rose-700 text-white rounded-xl transition-all shadow-md cursor-pointer"
+                            title="Xóa ảnh"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center p-3 text-slate-400 space-y-1">
+                        <CreditCard className="w-8 h-8 mx-auto text-slate-600" />
+                        <div className="text-[11px] font-medium text-slate-400">Mặt trước có ảnh &amp; số CCCD</div>
+                      </div>
+                    )}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => nativeCameraInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 transition-colors cursor-pointer"
-                  >
-                    <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Chụp bằng ĐT</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 transition-colors cursor-pointer"
-                  >
-                    <Upload className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Tải ảnh từ máy</span>
-                  </button>
-
-                  {photoUrl && (
+                  {/* Buttons for Front Side */}
+                  <div className="grid grid-cols-3 gap-1.5 pt-0.5">
                     <button
                       type="button"
-                      onClick={() => setPhotoUrl(undefined)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      onClick={() => setActiveCaptureSide('front')}
+                      className="py-2 px-1 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="Mở camera chụp mặt trước"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Xóa ảnh</span>
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{idCardFrontUrl ? 'Chụp lại' : 'Chụp'}</span>
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => frontNativeCameraRef.current?.click()}
+                      className="py-2 px-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      title="Chụp bằng camera sau điện thoại"
+                    >
+                      <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Chụp ĐT</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => frontFileInputRef.current?.click()}
+                      className="py-2 px-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      title="Tải ảnh từ máy"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Tải ảnh</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Mặt sau CCCD */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Mặt sau CCCD
+                    </span>
+                    {idCardBackUrl ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        Đã chụp
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium">Chưa có ảnh</span>
+                    )}
+                  </div>
+
+                  {/* Card Frame Preview */}
+                  <div className="relative aspect-[85/54] w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center group shadow-inner">
+                    {idCardBackUrl ? (
+                      <>
+                        <img
+                          src={idCardBackUrl}
+                          alt="Mặt sau CCCD"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewModalImage({ url: idCardBackUrl, title: 'Ảnh Mặt Sau Thẻ CCCD' })}
+                            className="p-2 bg-white/90 hover:bg-white text-slate-900 rounded-xl transition-all shadow-md cursor-pointer"
+                            title="Xem phóng to"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIdCardBackUrl(undefined)}
+                            className="p-2 bg-rose-600/90 hover:bg-rose-700 text-white rounded-xl transition-all shadow-md cursor-pointer"
+                            title="Xóa ảnh"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center p-3 text-slate-400 space-y-1">
+                        <CreditCard className="w-8 h-8 mx-auto text-slate-600" />
+                        <div className="text-[11px] font-medium text-slate-400">Mặt sau có chip, mã vạch &amp; ngày cấp</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Buttons for Back Side */}
+                  <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCaptureSide('back')}
+                      className="py-2 px-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="Mở camera chụp mặt sau"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{idCardBackUrl ? 'Chụp lại' : 'Chụp'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => backNativeCameraRef.current?.click()}
+                      className="py-2 px-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      title="Chụp bằng camera sau điện thoại"
+                    >
+                      <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Chụp ĐT</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => backFileInputRef.current?.click()}
+                      className="py-2 px-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      title="Tải ảnh từ máy"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Tải ảnh</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -808,13 +940,57 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
         onScanSuccess={handleQrScanSuccess}
       />
 
-      {/* Camera Capture Modal */}
+      {/* Camera Capture Modal cho Căn cước công dân */}
       <CameraCaptureModal
-        isOpen={isCameraCaptureOpen}
-        onClose={() => setIsCameraCaptureOpen(false)}
-        onCapture={(photoData) => setPhotoUrl(photoData)}
+        isOpen={activeCaptureSide !== null}
+        onClose={() => setActiveCaptureSide(null)}
+        onCapture={(cardPhoto) => {
+          if (activeCaptureSide === 'front') {
+            setIdCardFrontUrl(cardPhoto);
+          } else if (activeCaptureSide === 'back') {
+            setIdCardBackUrl(cardPhoto);
+          }
+          setActiveCaptureSide(null);
+        }}
         workerName={fullName || 'công nhân'}
+        title={activeCaptureSide === 'front' ? 'Chụp Mặt Trước Thẻ CCCD' : 'Chụp Mặt Sau Thẻ CCCD'}
+        subtitle={activeCaptureSide === 'front' ? 'Chụp rõ ảnh chân dung & số CCCD, họ tên' : 'Chụp rõ đặc điểm nhận dạng & ngày cấp'}
+        cardSide={activeCaptureSide || 'front'}
       />
+
+      {/* Lightbox xem phóng to ảnh CCCD */}
+      {previewModalImage && (
+        <div 
+          className="fixed inset-0 z-70 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in"
+          onClick={() => setPreviewModalImage(null)}
+        >
+          <div 
+            className="bg-slate-900 rounded-3xl p-3 sm:p-5 max-w-2xl w-full border border-slate-700 shadow-2xl relative space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-base">
+                <CreditCard className="w-5 h-5 text-emerald-400" />
+                <span>{previewModalImage.title}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewModalImage(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="rounded-2xl overflow-hidden bg-black flex items-center justify-center max-h-[75vh]">
+              <img 
+                src={previewModalImage.url} 
+                alt={previewModalImage.title}
+                className="w-full h-auto max-h-[72vh] object-contain rounded-xl"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

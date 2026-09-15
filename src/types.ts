@@ -8,7 +8,10 @@ export interface Worker {
   citizenId: string; // 6. Số CCCD (Quét QR để lấy số CCCD, nhập vào họ tên & địa chỉ)
   teamLeaderName: string; // 7. Tên tổ trưởng
   teamLeaderPhone: string; // 8. SĐT tổ trưởng
-  photoUrl?: string; // Ảnh chụp chân dung công nhân
+  photoUrl?: string; // Ảnh chụp cũ (nếu có)
+  idCardFrontUrl?: string; // Ảnh mặt trước Căn cước công dân (CCCD)
+  idCardBackUrl?: string; // Ảnh mặt sau Căn cước công dân (CCCD)
+  idCardUrl?: string; // Ảnh thẻ Căn cước công dân chung
   
   // Vị trí lưu trú trong Ký túc xá (Khu > Dãy > Phòng)
   zoneId: string; // ID Khu (Khu A, B, C, D...)

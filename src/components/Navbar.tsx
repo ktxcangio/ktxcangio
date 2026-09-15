@@ -11,7 +11,6 @@ import {
   BarChart3,
   CheckCircle2,
   AlertTriangle,
-  HardDrive,
   CloudCheck
 } from 'lucide-react';
 import { ViewMode } from '../types';
@@ -28,8 +27,6 @@ interface NavbarProps {
   onOpenAddWorker: () => void;
   onExportCSV: () => void;
   onResetData: () => void;
-  onOpenGoogleDrive: () => void;
-  isDriveConnected?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -44,8 +41,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAddWorker,
   onExportCSV,
   onResetData,
-  onOpenGoogleDrive,
-  isDriveConnected = false,
 }) => {
   const occupancyRate = totalRooms > 0 ? Math.round((totalWorkers / (totalRooms * 20)) * 100) : 0;
   const remainingBeds = Math.max(0, (totalRooms * 20) - totalWorkers);
@@ -71,35 +66,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <p className="text-[11px] sm:text-xs text-slate-400 truncate">
                 <span className="hidden sm:inline">Phân cấp Khu - Dãy - Phòng • </span>
-                Lưu trữ Google Drive & Firestore
+                Lưu trữ đám mây Cloud Firestore
               </p>
             </div>
           </div>
 
           {/* Quick Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Nút Mở Google Drive */}
-            <button
-              id="btn-open-google-drive"
-              onClick={onOpenGoogleDrive}
-              title="Quản lý đồng bộ & lưu trữ Google Drive"
-              className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[38px] ${
-                isDriveConnected
-                  ? 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/80 shadow-xs'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-              }`}
-            >
-              <HardDrive className={`w-4 h-4 ${isDriveConnected ? 'text-emerald-400' : 'text-blue-400'}`} />
-              <span className="hidden sm:inline">Google Drive</span>
-              {isDriveConnected && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              )}
-            </button>
-
             <button
               id="btn-add-worker-main"
               onClick={onOpenAddWorker}
-              className="inline-flex items-center gap-1 sm:gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-xs transition-colors cursor-pointer touch-manipulation min-h-[38px]"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-xs transition-colors cursor-pointer touch-manipulation min-h-[38px]"
             >
               <UserPlus className="w-4 h-4" />
               <span>+ Thêm CN</span>

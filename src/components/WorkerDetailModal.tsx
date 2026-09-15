@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Worker, 
   Zone, 
@@ -16,7 +16,10 @@ import {
   Edit3, 
   Trash2,
   Clock,
-  Briefcase
+  Briefcase,
+  CreditCard,
+  ZoomIn,
+  Check
 } from 'lucide-react';
 import { formatDate, formatPhoneNumber } from '../utils/vietnamese';
 
@@ -41,6 +44,8 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
   onDelete,
   onViewRoom,
 }) => {
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null);
+
   if (!worker) return null;
 
   const room = (rooms || []).find(r => r.id === worker.roomId);
@@ -216,6 +221,126 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
             </div>
           </div>
 
+          {/* ẢNH THẺ CĂN CƯỚC CÔNG DÂN (CCCD) */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-blue-600" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Ảnh Thẻ Căn Cước Công Dân (CCCD)
+                </h4>
+              </div>
+              {(worker.idCardFrontUrl || worker.idCardBackUrl || worker.idCardUrl) ? (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  Đã lưu ảnh thẻ
+                </span>
+              ) : (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onEdit(worker);
+                  }}
+                  className="text-[11px] text-blue-600 font-bold hover:underline cursor-pointer"
+                >
+                  + Thêm ảnh CCCD
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Mặt trước CCCD */}
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    Mặt trước CCCD
+                  </span>
+                  {(worker.idCardFrontUrl || worker.idCardUrl) && (
+                    <button 
+                      type="button" 
+                      onClick={() => setLightboxImage({ url: (worker.idCardFrontUrl || worker.idCardUrl)!, title: `Mặt trước CCCD - ${worker.fullName}` })}
+                      className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                    >
+                      <ZoomIn className="w-3 h-3" />
+                      Phóng to
+                    </button>
+                  )}
+                </div>
+                <div 
+                  onClick={() => (worker.idCardFrontUrl || worker.idCardUrl) && setLightboxImage({ url: (worker.idCardFrontUrl || worker.idCardUrl)!, title: `Mặt trước CCCD - ${worker.fullName}` })}
+                  className={`aspect-[85/54] rounded-lg overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center relative ${
+                    (worker.idCardFrontUrl || worker.idCardUrl) ? 'cursor-pointer group' : ''
+                  }`}
+                >
+                  {(worker.idCardFrontUrl || worker.idCardUrl) ? (
+                    <>
+                      <img 
+                        src={worker.idCardFrontUrl || worker.idCardUrl} 
+                        alt="Mặt trước CCCD" 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                        <ZoomIn className="w-4 h-4" />
+                        <span>Xem chi tiết</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center p-3 text-slate-400 space-y-1">
+                      <CreditCard className="w-7 h-7 mx-auto text-slate-600" />
+                      <div className="text-[11px] text-slate-400">Chưa có ảnh mặt trước</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Mặt sau CCCD */}
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Mặt sau CCCD
+                  </span>
+                  {worker.idCardBackUrl && (
+                    <button 
+                      type="button" 
+                      onClick={() => setLightboxImage({ url: worker.idCardBackUrl!, title: `Mặt sau CCCD - ${worker.fullName}` })}
+                      className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                    >
+                      <ZoomIn className="w-3 h-3" />
+                      Phóng to
+                    </button>
+                  )}
+                </div>
+                <div 
+                  onClick={() => worker.idCardBackUrl && setLightboxImage({ url: worker.idCardBackUrl, title: `Mặt sau CCCD - ${worker.fullName}` })}
+                  className={`aspect-[85/54] rounded-lg overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center relative ${
+                    worker.idCardBackUrl ? 'cursor-pointer group' : ''
+                  }`}
+                >
+                  {worker.idCardBackUrl ? (
+                    <>
+                      <img 
+                        src={worker.idCardBackUrl} 
+                        alt="Mặt sau CCCD" 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                        <ZoomIn className="w-4 h-4" />
+                        <span>Xem chi tiết</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center p-3 text-slate-400 space-y-1">
+                      <CreditCard className="w-7 h-7 mx-auto text-slate-600" />
+                      <div className="text-[11px] text-slate-400">Chưa có ảnh mặt sau</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {worker.notes && (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900">
               <strong>Ghi chú:</strong> {worker.notes}
@@ -261,6 +386,40 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Lightbox Modal để xem ảnh CCCD chi tiết phóng to */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div 
+            className="bg-slate-900 rounded-3xl p-3 sm:p-5 max-w-2xl w-full border border-slate-700 shadow-2xl relative space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-base">
+                <CreditCard className="w-5 h-5 text-emerald-400" />
+                <span>{lightboxImage.title}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="rounded-2xl overflow-hidden bg-black flex items-center justify-center max-h-[75vh]">
+              <img 
+                src={lightboxImage.url} 
+                alt={lightboxImage.title}
+                className="w-full h-auto max-h-[72vh] object-contain rounded-xl"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

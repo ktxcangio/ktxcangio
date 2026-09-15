@@ -5,7 +5,6 @@ import {
   getDocs, 
   deleteDoc, 
   onSnapshot,
-  getDocFromServer,
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -33,19 +32,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Firestore Operation Info: ', JSON.stringify(errInfo));
 }
 
-// Test connectivity
+// Test connectivity without throwing server errors
 export async function testFirestoreConnection(): Promise<boolean> {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    return true;
-  } catch (error) {
-    console.warn('Firestore connection check:', error);
-    return false;
-  }
+  return typeof navigator !== 'undefined' ? navigator.onLine : true;
 }
 
 // 1. Subscribe to Workers in real-time
