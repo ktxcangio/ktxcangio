@@ -8,7 +8,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   X,
-  Plus
+  Plus,
+  HardDrive
 } from 'lucide-react';
 import { ViewMode } from '../types';
 
@@ -24,6 +25,7 @@ interface SapoSidebarProps {
   onToggleCollapse: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
+  onOpenGoogleDriveSync?: () => void;
 }
 
 export const SapoSidebar: React.FC<SapoSidebarProps> = ({
@@ -38,6 +40,7 @@ export const SapoSidebar: React.FC<SapoSidebarProps> = ({
   onToggleCollapse,
   isMobileOpen,
   onCloseMobile,
+  onOpenGoogleDriveSync,
 }) => {
   const menuItems = [
     {
@@ -169,7 +172,7 @@ export const SapoSidebar: React.FC<SapoSidebarProps> = ({
             );
           })}
 
-          <div className="pt-2 border-t border-slate-800/80 my-2">
+          <div className="pt-2 border-t border-slate-800/80 my-2 space-y-1">
             <button
               onClick={() => {
                 onOpenStructureManager();
@@ -183,6 +186,22 @@ export const SapoSidebar: React.FC<SapoSidebarProps> = ({
                 <span className="truncate">Cấu hình Khu - Dãy</span>
               )}
             </button>
+
+            {onOpenGoogleDriveSync && (
+              <button
+                onClick={() => {
+                  onOpenGoogleDriveSync();
+                  if (isMobileOpen) onCloseMobile();
+                }}
+                title="Lưu trữ & Đồng bộ Google Drive / Sao lưu"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer group text-left text-blue-400 hover:text-blue-300 hover:bg-slate-800/80"
+              >
+                <HardDrive className="w-4 h-4 shrink-0 text-blue-400 group-hover:text-blue-300" />
+                {(!isCollapsed || isMobileOpen) && (
+                  <span className="truncate">Lưu Google Drive</span>
+                )}
+              </button>
+            )}
           </div>
         </nav>
 

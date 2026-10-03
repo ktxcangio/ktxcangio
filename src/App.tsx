@@ -30,6 +30,7 @@ import { StatsDashboard } from './components/StatsDashboard';
 import { OverviewDiagrams } from './components/OverviewDiagrams';
 import { ZoneBlockSidebar } from './components/ZoneBlockSidebar';
 import { RoomIdCardsModal } from './components/RoomIdCardsModal';
+import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
 import { 
   subscribeWorkers, 
   saveWorkerToFirestore, 
@@ -205,6 +206,7 @@ export default function App() {
   const [workerToTransfer, setWorkerToTransfer] = useState<Worker | null>(null);
   const [workerToViewProfile, setWorkerToViewProfile] = useState<Worker | null>(null);
   const [roomForIdCardsModal, setRoomForIdCardsModal] = useState<Room | null>(null);
+  const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState<boolean>(false);
 
   // 4. Lọc danh sách công nhân theo Search (không dấu) & Filter
   const filteredWorkers = useMemo(() => {
@@ -510,6 +512,25 @@ export default function App() {
     }
   };
 
+  // Khôi phục dữ liệu từ Google Drive hoặc tệp sao lưu JSON
+  const handleRestoreData = async (newWorkers: Worker[], newZones: Zone[]) => {
+    setWorkers(newWorkers);
+    setZones(newZones);
+    setSyncStatus('syncing');
+    try {
+      for (const w of newWorkers) {
+        await saveWorkerToFirestore(w);
+      }
+      for (const z of newZones) {
+        await saveZoneToFirestore(z);
+      }
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error('Lỗi khi lưu dữ liệu khôi phục lên Firestore:', err);
+      setSyncStatus('offline');
+    }
+  };
+
   // Xuất file CSV (Excel tiếng Việt có BOM UTF-8)
   const handleExportCSV = () => {
     const headers = [
@@ -593,6 +614,7 @@ export default function App() {
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
         isMobileOpen={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
+        onOpenGoogleDriveSync={() => setIsGoogleDriveModalOpen(true)}
       />
 
       {/* Main Sapo App Workspace */}
@@ -620,6 +642,7 @@ export default function App() {
           onResetData={handleResetData}
           onOpenStructureManager={() => setIsStructureModalOpen(true)}
           onOpenCategorySidebar={() => setIsMobileSidebarOpen(true)}
+          onOpenGoogleDriveSync={() => setIsGoogleDriveModalOpen(true)}
         />
 
         {/* Content Workspace Area */}
@@ -871,6 +894,17 @@ export default function App() {
           onUpdateWorkerPhotos={handleUpdateWorkerPhotos}
         />
       )}
+
+      {/* Modal 7: Lưu Trữ & Đồng Bộ Dữ Liệu Google Drive (Khắc phục hạn chế chính sách Google) */}
+      <GoogleDriveSyncModal
+        isOpen={isGoogleDriveModalOpen}
+        onClose={() => setIsGoogleDriveModalOpen(false)}
+        workers={workers}
+        zones={zones}
+        rooms={rooms}
+        onRestoreData={handleRestoreData}
+        syncStatus={syncStatus}
+      />
     </div>
   );
 }
