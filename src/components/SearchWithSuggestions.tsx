@@ -276,7 +276,7 @@ export const SearchWithSuggestions: React.FC<SearchWithSuggestionsProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoComplete="off"
-          className="w-full pl-9 pr-14 py-2 sm:py-2.5 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-slate-900 placeholder-slate-400 text-xs sm:text-sm rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-2xs font-medium"
+          className="w-full pl-9 pr-14 py-2 bg-white hover:bg-slate-50 focus:bg-white text-slate-800 placeholder-slate-400 text-xs sm:text-sm rounded-md border border-[#D3D5D7] focus:border-[#0088FF] focus:ring-1 focus:ring-[#0088FF] outline-hidden transition-all shadow-2xs font-medium"
         />
 
         <div className="absolute right-2.5 flex items-center gap-1">

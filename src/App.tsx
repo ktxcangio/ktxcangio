@@ -12,10 +12,12 @@ import {
   normalizeZones,
   INITIAL_WORKERS, 
   DEPARTMENTS, 
-  STORAGE_KEY_WORKERS 
+  STORAGE_KEY_WORKERS,
+  STORAGE_LOCAL_KEY_ZONES 
 } from './data/dormitoryData';
 import { matchVietnameseSearch } from './utils/vietnamese';
-import { Navbar } from './components/Navbar';
+import { SapoSidebar } from './components/SapoSidebar';
+import { SapoHeader } from './components/SapoHeader';
 import { FilterBar } from './components/FilterBar';
 import { RoomGridView } from './components/RoomGridView';
 import { WorkerTableView } from './components/WorkerTableView';
@@ -25,6 +27,9 @@ import { TransferWorkerModal } from './components/TransferWorkerModal';
 import { WorkerDetailModal } from './components/WorkerDetailModal';
 import { StructureManagerModal } from './components/StructureManagerModal';
 import { StatsDashboard } from './components/StatsDashboard';
+import { OverviewDiagrams } from './components/OverviewDiagrams';
+import { ZoneBlockSidebar } from './components/ZoneBlockSidebar';
+import { RoomIdCardsModal } from './components/RoomIdCardsModal';
 import { 
   subscribeWorkers, 
   saveWorkerToFirestore, 
@@ -35,14 +40,46 @@ import {
   deleteZoneFromFirestore,
   seedZonesIfEmpty
 } from './services/firestoreService';
-import { Cloud, CheckCircle2, AlertCircle, RefreshCw, Database } from 'lucide-react';
+import { Cloud, CheckCircle2, AlertCircle, RefreshCw, Database, FolderTree } from 'lucide-react';
 
 export default function App() {
   // 1. Quản lý dữ liệu Khu, Dãy, Phòng và Công nhân
-  const [zones, setZones] = useState<Zone[]>(ZONES_DATA);
-  const [workers, setWorkers] = useState<Worker[]>(INITIAL_WORKERS);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [zones, setZones] = useState<Zone[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_LOCAL_KEY_ZONES);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return normalizeZones(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('LocalStorage zones read error:', e);
+    }
+    return ZONES_DATA;
+  });
+
+  const [workers, setWorkers] = useState<Worker[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_WORKERS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('LocalStorage workers read error:', e);
+    }
+    return INITIAL_WORKERS;
+  });
+
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('synced');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isCategorySidebarOpen, setIsCategorySidebarOpen] = useState<boolean>(false);
 
   // Tính danh sách phòng dựa trên các Khu và Dãy (mỗi dãy có 15 phòng)
   const rooms = useMemo(() => generateRooms(zones), [zones]);
@@ -62,7 +99,13 @@ export default function App() {
           const parsed = JSON.parse(savedWorkers);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setWorkers(parsed);
-            setIsLoading(false);
+          }
+        }
+        const savedZones = localStorage.getItem(STORAGE_LOCAL_KEY_ZONES);
+        if (savedZones) {
+          const parsed = JSON.parse(savedZones);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setZones(normalizeZones(parsed));
           }
         }
       } catch (e) {
@@ -93,7 +136,13 @@ export default function App() {
       unsubscribeZones = subscribeZones(
         (updatedZones) => {
           if (updatedZones && updatedZones.length > 0) {
-            setZones(normalizeZones(updatedZones));
+            const normalized = normalizeZones(updatedZones);
+            setZones(normalized);
+            try {
+              localStorage.setItem(STORAGE_LOCAL_KEY_ZONES, JSON.stringify(normalized));
+            } catch (e) {
+              console.error(e);
+            }
           }
         },
         (err) => {
@@ -155,6 +204,7 @@ export default function App() {
 
   const [workerToTransfer, setWorkerToTransfer] = useState<Worker | null>(null);
   const [workerToViewProfile, setWorkerToViewProfile] = useState<Worker | null>(null);
+  const [roomForIdCardsModal, setRoomForIdCardsModal] = useState<Room | null>(null);
 
   // 4. Lọc danh sách công nhân theo Search (không dấu) & Filter
   const filteredWorkers = useMemo(() => {
@@ -267,23 +317,23 @@ export default function App() {
   };
 
   const handleDeleteWorker = async (worker: Worker) => {
-    const confirm = window.confirm(
-      `Bạn có chắc chắn muốn trả phòng và xóa hồ sơ nhân viên "${worker.fullName}" (${worker.code})? Dữ liệu sẽ được đồng bộ lên Google Cloud.`
-    );
-    if (confirm) {
-      setSyncStatus('syncing');
-      // Optimistic delete
-      const remainingWorkers = workers.filter(w => w.id !== worker.id);
-      setWorkers(remainingWorkers);
-      if (workerToViewProfile?.id === worker.id) {
-        setWorkerToViewProfile(null);
-      }
-      try {
-        await deleteWorkerFromFirestore(worker.id);
-        setSyncStatus('synced');
-      } catch (err) {
-        console.error('Lỗi khi xóa trên Firestore:', err);
-      }
+    setSyncStatus('syncing');
+    // Optimistic delete
+    const remainingWorkers = workers.filter(w => w.id !== worker.id);
+    setWorkers(remainingWorkers);
+    try {
+      localStorage.setItem(STORAGE_KEY_WORKERS, JSON.stringify(remainingWorkers));
+    } catch (e) {
+      console.error(e);
+    }
+    if (workerToViewProfile?.id === worker.id) {
+      setWorkerToViewProfile(null);
+    }
+    try {
+      await deleteWorkerFromFirestore(worker.id);
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error('Lỗi khi xóa trên Firestore:', err);
     }
   };
 
@@ -302,7 +352,7 @@ export default function App() {
       ...existing,
       roomId: targetRoomId,
       bedNumber: targetBedNumber,
-      lockerNumber: targetBedNumber,
+      lockerNumber: existing.lockerNumber !== undefined ? existing.lockerNumber : 1,
       zoneId: targetZoneId,
       blockId: targetBlockId,
     };
@@ -319,10 +369,116 @@ export default function App() {
     }
   };
 
+  // Cập nhật ảnh mặt trước/mặt sau CCCD cho công nhân (từ modal xuất ảnh CCCD)
+  const handleUpdateWorkerPhotos = async (workerId: string, frontUrl?: string, backUrl?: string) => {
+    setSyncStatus('syncing');
+    let updatedWorker: Worker | undefined;
+
+    setWorkers(prev => prev.map(w => {
+      if (w.id === workerId) {
+        updatedWorker = {
+          ...w,
+          idCardFrontUrl: frontUrl,
+          idCardBackUrl: backUrl,
+          idCardUrl: frontUrl,
+        };
+        return updatedWorker;
+      }
+      return w;
+    }));
+
+    if (updatedWorker) {
+      try {
+        await saveWorkerToFirestore(updatedWorker);
+        setSyncStatus('synced');
+      } catch (e) {
+        console.error('Save worker photo error:', e);
+      }
+    }
+  };
+
+  // Xóa Khu chuyên dụng (xử lý triệt để cả công nhân và cache)
+  const handleDeleteZone = async (zoneId: string, workerHandling: 'unassign' | 'delete' = 'unassign') => {
+    setSyncStatus('syncing');
+
+    // 1. Cập nhật danh sách Zones
+    const remainingZones = zones.filter(z => z.id !== zoneId);
+    setZones(remainingZones);
+
+    // Lưu vào LocalStorage ngay lập tức để không bao giờ bị phục hồi lại
+    try {
+      localStorage.setItem(STORAGE_LOCAL_KEY_ZONES, JSON.stringify(remainingZones));
+    } catch (e) {
+      console.error('LocalStorage write error:', e);
+    }
+
+    // 2. Xử lý công nhân đang thuộc Khu này
+    if (workerHandling === 'delete') {
+      const workersToDelete = workers.filter(w => w.zoneId === zoneId);
+      const remainingWorkers = workers.filter(w => w.zoneId !== zoneId);
+      setWorkers(remainingWorkers);
+      try {
+        localStorage.setItem(STORAGE_KEY_WORKERS, JSON.stringify(remainingWorkers));
+        for (const w of workersToDelete) {
+          await deleteWorkerFromFirestore(w.id);
+        }
+      } catch (err) {
+        console.error('Lỗi khi xóa công nhân của Khu:', err);
+      }
+    } else {
+      const affectedWorkers: Worker[] = [];
+      const updatedWorkers = workers.map(w => {
+        if (w.zoneId === zoneId) {
+          const unassigned: Worker = {
+            ...w,
+            zoneId: '',
+            blockId: '',
+            roomId: '',
+            bedNumber: 0,
+            lockerNumber: 0,
+            notes: (w.notes ? w.notes + ' • ' : '') + `Chưa xếp phòng (Đã giải phóng khi xóa khu)`
+          };
+          affectedWorkers.push(unassigned);
+          return unassigned;
+        }
+        return w;
+      });
+      setWorkers(updatedWorkers);
+      try {
+        localStorage.setItem(STORAGE_KEY_WORKERS, JSON.stringify(updatedWorkers));
+        for (const w of affectedWorkers) {
+          await saveWorkerToFirestore(w);
+        }
+      } catch (err) {
+        console.error('Lỗi khi cập nhật công nhân chưa xếp phòng:', err);
+      }
+    }
+
+    // 3. Nếu đang xem Khu bị xóa, chuyển về tổng quan 'all'
+    if (filters.zoneId === zoneId) {
+      setFilters(prev => ({ ...prev, zoneId: 'all', blockId: 'all' }));
+    }
+
+    // 4. Đồng bộ xóa trên Google Cloud Firestore
+    try {
+      await deleteZoneFromFirestore(zoneId);
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error('Lỗi khi xóa Khu trên Firestore:', err);
+      setSyncStatus('offline');
+    }
+  };
+
   // Cập nhật cấu trúc Khu / Dãy / Phòng (Thêm & Xóa)
   const handleSaveZones = async (newZones: Zone[], deletedZoneIds?: string[]) => {
     setSyncStatus('syncing');
     setZones(newZones);
+
+    try {
+      localStorage.setItem(STORAGE_LOCAL_KEY_ZONES, JSON.stringify(newZones));
+    } catch (e) {
+      console.error(e);
+    }
 
     try {
       if (deletedZoneIds && deletedZoneIds.length > 0) {
@@ -369,7 +525,7 @@ export default function App() {
       'Dãy',
       'Phòng',
       'Số Giường',
-      'Số Tủ Đồ',
+      'Tổng Số Tủ',
       'Trạng Thái',
       'Ghi Chú',
     ];
@@ -392,7 +548,7 @@ export default function App() {
         `"${block?.name || ''}"`,
         `"${room?.name || ''}"`,
         `"${w.bedNumber}"`,
-        `"${w.lockerNumber || w.bedNumber}"`,
+        `"${w.lockerNumber !== undefined ? w.lockerNumber : 1}"`,
         `"${w.status === 'active' ? 'Đang ở' : 'Tạm vắng'}"`,
         `"${w.notes || ''}"`,
       ];
@@ -418,132 +574,209 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      {/* Top Bar with Brand & Counters */}
-      <Navbar
-        totalWorkers={workers.length}
-        totalRooms={rooms.length}
-        maxCapacity={roomStats.totalCapacity}
-        fullRoomsCount={roomStats.fullRoomsCount}
-        emptyRoomsCount={roomStats.emptyRoomsCount}
-        availableRoomsCount={roomStats.availableRoomsCount}
+    <div className="min-h-screen bg-[#F4F6F8] text-slate-800 flex font-sans selection:bg-[#0088FF] selection:text-white">
+      {/* Sapo Left Navigation Rail */}
+      <SapoSidebar
         currentView={viewMode}
         onViewChange={setViewMode}
+        totalWorkers={workers.length}
+        totalRooms={rooms.length}
+        syncStatus={syncStatus}
+        onOpenStructureManager={() => setIsStructureModalOpen(true)}
         onOpenAddWorker={() => {
           setWorkerToEdit(null);
           setModalInitialRoomId(undefined);
           setModalInitialBedNumber(undefined);
           setIsWorkerModalOpen(true);
         }}
-        onExportCSV={handleExportCSV}
-        onResetData={handleResetData}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
-      {/* Cloud Persistence & Realtime Indicator Bar */}
-      <div className="bg-slate-800 text-slate-300 text-xs px-4 py-1.5 flex items-center justify-between border-b border-slate-700">
-        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 text-blue-400 font-medium">
-              <Database className="w-3.5 h-3.5" />
-              <span>Google Cloud Firestore:</span>
-            </span>
-            <span className="text-slate-300">
-              Cơ sở dữ liệu thời gian thực ({workers.length} hồ sơ)
-            </span>
-          </div>
+      {/* Main Sapo App Workspace */}
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${
+        isSidebarCollapsed ? 'lg:pl-[68px]' : 'lg:pl-60'
+      }`}>
+        {/* Sapo Top Header */}
+        <SapoHeader
+          currentView={viewMode}
+          totalWorkers={workers.length}
+          totalRooms={rooms.length}
+          maxCapacity={roomStats.totalCapacity}
+          availableRoomsCount={roomStats.availableRoomsCount}
+          fullRoomsCount={roomStats.fullRoomsCount}
+          syncStatus={syncStatus}
+          onViewChange={setViewMode}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          onOpenAddWorker={() => {
+            setWorkerToEdit(null);
+            setModalInitialRoomId(undefined);
+            setModalInitialBedNumber(undefined);
+            setIsWorkerModalOpen(true);
+          }}
+          onExportCSV={handleExportCSV}
+          onResetData={handleResetData}
+          onOpenStructureManager={() => setIsStructureModalOpen(true)}
+          onOpenCategorySidebar={() => setIsMobileSidebarOpen(true)}
+        />
 
-          <div className="flex items-center gap-3">
-            {syncStatus === 'syncing' && (
-              <span className="flex items-center gap-1 text-amber-300">
-                <RefreshCw className="w-3 h-3 animate-spin" />
-                <span>Đang đồng bộ Firestore...</span>
-              </span>
-            )}
-            {syncStatus === 'synced' && (
-              <span className="flex items-center gap-1 text-emerald-400">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>Đã lưu an toàn trên Firestore</span>
-              </span>
-            )}
-            {syncStatus === 'offline' && (
-              <span className="flex items-center gap-1 text-rose-400">
-                <AlertCircle className="w-3 h-3" />
-                <span>Chế độ ngoại tuyến</span>
-              </span>
-            )}
+        {/* Content Workspace Area */}
+        <main className="flex-1 w-full max-w-[1720px] mx-auto p-3 sm:p-5 space-y-3.5">
+          {/* Sapo Filter & Status Tab Bar */}
+          <FilterBar
+            zones={zones}
+            rooms={rooms}
+            workers={workers}
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onResetFilters={handleResetFilters}
+            departments={DEPARTMENTS}
+            totalFilteredWorkers={filteredWorkers.length}
+            totalFilteredRooms={filteredRooms.length}
+            onOpenStructureManager={() => setIsStructureModalOpen(true)}
+            onOpenCategorySidebar={() => setIsMobileSidebarOpen(true)}
+            isCategorySidebarOpen={isCategorySidebarOpen}
+            onToggleCategorySidebar={() => setIsCategorySidebarOpen(prev => !prev)}
+            onSelectWorker={(worker) => setWorkerToViewProfile(worker)}
+            onSelectRoom={(room) => setSelectedRoom(room)}
+          />
+
+          {/* Sapo Layout: Optional Category Panel + Main Content */}
+          <div className="flex flex-col lg:flex-row items-start gap-4">
+            {/* Cột Danh mục Khu - Dãy (ẩn trên desktop khi chưa bật để tối ưu không gian) */}
+            <ZoneBlockSidebar
+              zones={zones}
+              rooms={rooms}
+              workers={workers}
+              selectedZoneId={filters.zoneId}
+              selectedBlockId={filters.blockId}
+              onSelectZoneBlock={(zoneId, blockId) => handleFilterChange({ zoneId, blockId })}
+              onOpenStructureManager={() => setIsStructureModalOpen(true)}
+              isMobileOpen={isMobileSidebarOpen}
+              onCloseMobile={() => setIsMobileSidebarOpen(false)}
+              hideOnDesktop={!isCategorySidebarOpen || viewMode !== 'grid'}
+              onCloseDesktop={() => setIsCategorySidebarOpen(false)}
+            />
+
+            {/* Vùng nội dung chính bên phải */}
+            <div className="flex-1 min-w-0 w-full space-y-3.5">
+              {/* Thanh hiển thị danh mục đang chọn (nếu có chọn Khu hoặc Dãy) */}
+              {(filters.zoneId !== 'all' || filters.blockId !== 'all') && (
+                <div className="bg-white rounded-lg p-2.5 px-3 border border-[#E4E8EC] shadow-2xs flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleFilterChange({ zoneId: 'all', blockId: 'all' })}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-[#E5F3FF] text-slate-700 hover:text-[#0088FF] font-semibold transition-colors cursor-pointer border border-slate-200"
+                    >
+                      <span>‹ Sơ đồ tổng quát KTX</span>
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-500 font-medium">Đang xem:</span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#E5F3FF] text-[#0088FF] font-bold border border-[#BAE0FF]">
+                      <span>{zones.find(z => z.id === filters.zoneId)?.name || 'Khu KTX'}</span>
+                      {filters.blockId !== 'all' && (
+                        <>
+                          <span className="text-blue-300">›</span>
+                          <span>{zones.find(z => z.id === filters.zoneId)?.blocks?.find(b => b.id === filters.blockId)?.name || 'Dãy'}</span>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-slate-300 hidden sm:inline">•</span>
+                    <span className="text-slate-600">
+                      <strong className="text-slate-800 font-bold">{filteredRooms.length}</strong> phòng, <strong className="text-slate-800 font-bold">{filteredWorkers.length}</strong> công nhân
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleFilterChange({ zoneId: 'all', blockId: 'all' })}
+                    className="text-xs text-[#0088FF] hover:text-[#0070E0] font-semibold cursor-pointer underline hover:no-underline"
+                  >
+                    Xem tất cả Khu (Sơ đồ tổng quát)
+                  </button>
+                </div>
+              )}
+
+              {isLoading && workers.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-white rounded-lg border border-[#E4E8EC]">
+                  <RefreshCw className="w-8 h-8 text-[#0088FF] animate-spin" />
+                  <p className="text-sm font-semibold text-slate-600">Đang tải dữ liệu KTX từ Cloud Firestore...</p>
+                </div>
+              ) : (
+                <>
+                  {viewMode === 'grid' && (
+                    filters.zoneId === 'all' && !filters.searchQuery.trim() ? (
+                      <OverviewDiagrams
+                        zones={zones}
+                        rooms={rooms}
+                        workers={workers}
+                        onSelectZone={(zoneId) => handleFilterChange({ zoneId, blockId: 'all' })}
+                        onOpenAddWorker={() => {
+                          setWorkerToEdit(null);
+                          setModalInitialRoomId(undefined);
+                          setModalInitialBedNumber(undefined);
+                          setIsWorkerModalOpen(true);
+                        }}
+                        onExportCSV={handleExportCSV}
+                        onOpenStructureManager={() => setIsStructureModalOpen(true)}
+                        onDeleteZone={handleDeleteZone}
+                      />
+                    ) : (
+                      <RoomGridView
+                        zones={zones}
+                        rooms={filteredRooms}
+                        workers={workers}
+                        searchQuery={filters.searchQuery}
+                        selectedZoneId={filters.zoneId}
+                        selectedBlockId={filters.blockId}
+                        onFilterBlock={(blockId) => handleFilterChange({ blockId })}
+                        onSelectRoom={(room) => setSelectedRoom(room)}
+                        onAddWorkerToRoom={(room) => handleOpenAddWorkerToRoom(room)}
+                        onSelectWorker={(worker) => setWorkerToViewProfile(worker)}
+                        onBackToOverview={() => handleFilterChange({ zoneId: 'all', blockId: 'all', searchQuery: '' })}
+                        onSelectZone={(zoneId) => handleFilterChange({ zoneId, blockId: 'all' })}
+                        onDeleteZone={handleDeleteZone}
+                        onOpenIdCardsPrint={(room) => setRoomForIdCardsModal(room)}
+                      />
+                    )
+                  )}
+
+                  {viewMode === 'table' && (
+                    <WorkerTableView
+                      workers={filteredWorkers}
+                      zones={zones}
+                      rooms={rooms}
+                      searchQuery={filters.searchQuery}
+                      onSelectWorker={(worker) => setWorkerToViewProfile(worker)}
+                      onEditWorker={(worker) => {
+                        setWorkerToEdit(worker);
+                        setIsWorkerModalOpen(true);
+                      }}
+                      onTransferWorker={(worker) => setWorkerToTransfer(worker)}
+                      onDeleteWorker={handleDeleteWorker}
+                      onSelectRoomById={(roomId) => {
+                        const r = rooms.find((room) => room.id === roomId);
+                        if (r) setSelectedRoom(r);
+                      }}
+                    />
+                  )}
+
+                  {viewMode === 'stats' && (
+                    <StatsDashboard
+                      workers={workers}
+                      zones={zones}
+                      rooms={rooms}
+                    />
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        </main>
       </div>
-
-      {/* Persistent Filters Bar with Non-accent Search & Instant Suggestions */}
-      <FilterBar
-        zones={zones}
-        rooms={rooms}
-        workers={workers}
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        onResetFilters={handleResetFilters}
-        departments={DEPARTMENTS}
-        totalFilteredWorkers={filteredWorkers.length}
-        totalFilteredRooms={filteredRooms.length}
-        onOpenStructureManager={() => setIsStructureModalOpen(true)}
-        onSelectWorker={(worker) => setWorkerToViewProfile(worker)}
-        onSelectRoom={(room) => setSelectedRoom(room)}
-      />
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6">
-        {isLoading && workers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-3">
-            <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
-            <p className="text-sm font-semibold text-slate-600">Đang tải dữ liệu KTX từ Google Cloud...</p>
-          </div>
-        ) : (
-          <>
-            {viewMode === 'grid' && (
-              <RoomGridView
-                zones={zones}
-                rooms={filteredRooms}
-                workers={workers}
-                searchQuery={filters.searchQuery}
-                selectedZoneId={filters.zoneId}
-                selectedBlockId={filters.blockId}
-                onSelectRoom={(room) => setSelectedRoom(room)}
-                onAddWorkerToRoom={(room) => handleOpenAddWorkerToRoom(room)}
-                onSelectWorker={(worker) => setWorkerToViewProfile(worker)}
-              />
-            )}
-
-            {viewMode === 'table' && (
-              <WorkerTableView
-                workers={filteredWorkers}
-                zones={zones}
-                rooms={rooms}
-                searchQuery={filters.searchQuery}
-                onSelectWorker={(worker) => setWorkerToViewProfile(worker)}
-                onEditWorker={(worker) => {
-                  setWorkerToEdit(worker);
-                  setIsWorkerModalOpen(true);
-                }}
-                onTransferWorker={(worker) => setWorkerToTransfer(worker)}
-                onDeleteWorker={handleDeleteWorker}
-                onSelectRoomById={(roomId) => {
-                  const r = rooms.find((room) => room.id === roomId);
-                  if (r) setSelectedRoom(r);
-                }}
-              />
-            )}
-
-            {viewMode === 'stats' && (
-              <StatsDashboard
-                workers={workers}
-                zones={zones}
-                rooms={rooms}
-              />
-            )}
-          </>
-        )}
-      </main>
 
       {/* Modal 1: Chi tiết Giường & Tủ đồ trong Phòng */}
       {selectedRoom && (
@@ -563,6 +796,7 @@ export default function App() {
           }}
           onTransferWorker={(worker) => setWorkerToTransfer(worker)}
           onDeleteWorker={handleDeleteWorker}
+          onOpenIdCardsPrint={() => setRoomForIdCardsModal(selectedRoom)}
         />
       )}
 
@@ -621,7 +855,21 @@ export default function App() {
         workers={workers}
         onClose={() => setIsStructureModalOpen(false)}
         onSaveZones={handleSaveZones}
+        onDeleteZoneDirectly={handleDeleteZone}
       />
+
+      {/* Modal 6: Xuất & In Ảnh Căn Cước Công Dân (2 Mặt) theo Phòng */}
+      {roomForIdCardsModal && (
+        <RoomIdCardsModal
+          room={roomForIdCardsModal}
+          zone={zones.find((z) => z.id === roomForIdCardsModal.zoneId)}
+          block={zones.find((z) => z.id === roomForIdCardsModal.zoneId)?.blocks?.find((b) => b.id === roomForIdCardsModal.blockId)}
+          workers={workers.filter((w) => w.roomId === roomForIdCardsModal.id)}
+          isOpen={!!roomForIdCardsModal}
+          onClose={() => setRoomForIdCardsModal(null)}
+          onUpdateWorkerPhotos={handleUpdateWorkerPhotos}
+        />
+      )}
     </div>
   );
 }

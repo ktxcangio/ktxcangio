@@ -19,7 +19,8 @@ import {
   Briefcase,
   CreditCard,
   ZoomIn,
-  Check
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { formatDate, formatPhoneNumber } from '../utils/vietnamese';
 
@@ -115,7 +116,7 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="font-bold text-slate-900 text-sm sm:text-base truncate">
-                  {room?.name} • Giường #{worker.bedNumber} • Tủ #{worker.lockerNumber || worker.bedNumber}
+                  {room?.name} • Giường #{worker.bedNumber} • {worker.lockerNumber !== undefined ? `${worker.lockerNumber} tủ đồ` : '1 tủ đồ'}
                 </div>
                 <div className="text-xs text-slate-600 mt-0.5 truncate">
                   {zone?.name} &gt; {block?.name} (Tối đa {room?.maxCapacity || 20} người)
@@ -223,17 +224,23 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
 
           {/* ẢNH THẺ CĂN CƯỚC CÔNG DÂN (CCCD) */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-blue-600" />
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                   Ảnh Thẻ Căn Cước Công Dân (CCCD)
                 </h4>
+                {(worker.idCardFrontUrl || worker.idCardBackUrl || worker.idCardUrl) && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-full shadow-2xs">
+                    <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+                    Chuẩn HD
+                  </span>
+                )}
               </div>
               {(worker.idCardFrontUrl || worker.idCardBackUrl || worker.idCardUrl) ? (
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
                   <Check className="w-3 h-3" />
-                  Đã lưu ảnh thẻ
+                  Đã lưu ảnh thẻ HD
                 </span>
               ) : (
                 <button
@@ -398,9 +405,13 @@ export const WorkerDetailModal: React.FC<WorkerDetailModalProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-base">
+              <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-base flex-wrap">
                 <CreditCard className="w-5 h-5 text-emerald-400" />
                 <span>{lightboxImage.title}</span>
+                <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-400/15 border border-amber-400/30 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  HD Sắc Nét
+                </span>
               </div>
               <button
                 type="button"

@@ -31,9 +31,9 @@ export interface Room {
   blockId: string;
   roomNumber: number;
   name: string; // Tên phòng (VD: Phòng 1, Phòng 2, Phòng P01...)
-  maxCapacity: number; // Tối đa 20 người
-  bedCount: number; // Số lượng giường ngủ (mặc định 20 hoặc tùy chỉnh)
-  lockerCount: number; // Số lượng tủ đồ (mặc định 20 hoặc tùy chỉnh)
+  maxCapacity: number; // Tiêu chuẩn thiết kế ban đầu (mỗi phòng thêm không giới hạn công nhân)
+  bedCount: number; // Số lượng giường ngủ (tự động co giãn theo thực tế)
+  lockerCount: number; // Số lượng tủ đồ
   genderType?: 'Nam' | 'Nữ' | 'Hỗn hợp';
   floor?: number;
 }

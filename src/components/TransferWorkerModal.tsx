@@ -70,31 +70,28 @@ export const TransferWorkerModal: React.FC<TransferWorkerModalProps> = ({
   const selectedTargetRoom = targetRooms.find(r => r.id === targetRoomId);
   const maxCap = selectedTargetRoom?.maxCapacity || 20;
 
-  // Kiểm tra sức chứa phòng đích
+  // Lấy danh sách công nhân trong phòng đích
   const workersInTargetRoom = safeWorkers.filter(
     w => w.roomId === targetRoomId && w.id !== worker.id
   );
-  const isTargetFull = workersInTargetRoom.length >= maxCap;
-  const occupiedBeds = new Set(workersInTargetRoom.map(w => w.bedNumber));
+  const occupiedBeds = new Set<number>(workersInTargetRoom.map(w => Number(w.bedNumber)));
+  const occupiedBedList: number[] = Array.from(occupiedBeds);
+  const maxBedUsed = Math.max(0, ...occupiedBedList, Number(targetBedNumber) || 0);
+  const displayedBedCount = Math.max(selectedTargetRoom?.bedCount || 20, maxBedUsed, workersInTargetRoom.length + 1);
 
   // Tự động chọn giường trống đầu tiên nếu giường đang chọn bị trùng
   useEffect(() => {
     if (occupiedBeds.has(targetBedNumber)) {
-      for (let i = 1; i <= maxCap; i++) {
-        if (!occupiedBeds.has(i)) {
-          setTargetBedNumber(i);
-          break;
-        }
+      let b = 1;
+      while (occupiedBeds.has(b)) {
+        b++;
       }
+      setTargetBedNumber(b);
     }
   }, [targetRoomId]);
 
   const handleTransfer = () => {
     setErrorMsg('');
-    if (isTargetFull) {
-      setErrorMsg(`Phòng đích đã đủ tối đa ${maxCap} người. Vui lòng chọn phòng khác.`);
-      return;
-    }
     if (occupiedBeds.has(targetBedNumber)) {
       setErrorMsg(`Giường #${targetBedNumber} đã có người ở. Vui lòng chọn giường trống khác.`);
       return;
@@ -228,11 +225,23 @@ export const TransferWorkerModal: React.FC<TransferWorkerModalProps> = ({
 
             {/* Target Bed selection */}
             <div className="pt-2">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Chọn Giường tại phòng mới (1 - {selectedTargetRoom?.bedCount || 20}):
-              </label>
-              <div className="grid grid-cols-4 sm:grid-cols-10 gap-1.5 sm:gap-1.5">
-                {Array.from({ length: selectedTargetRoom?.bedCount || 20 }, (_, idx) => {
+              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                <label className="text-xs font-semibold text-slate-700">
+                  Chọn Giường tại phòng mới ({workersInTargetRoom.length} người đang ở - Không giới hạn):
+                </label>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-500 font-medium">Hoặc nhập số:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={targetBedNumber}
+                    onChange={(e) => setTargetBedNumber(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-16 px-2 py-0.5 text-xs font-bold text-blue-700 bg-white border border-slate-300 rounded-lg outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-10 gap-1.5 sm:gap-1.5 max-h-[160px] overflow-y-auto pr-1">
+                {Array.from({ length: displayedBedCount }, (_, idx) => {
                   const bedNum = idx + 1;
                   const isOccupied = occupiedBeds.has(bedNum);
                   const isSelected = targetBedNumber === bedNum;

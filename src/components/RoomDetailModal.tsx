@@ -19,7 +19,9 @@ import {
   AlertTriangle,
   Building,
   Briefcase,
-  Shield
+  Shield,
+  CreditCard,
+  Printer
 } from 'lucide-react';
 import { formatPhoneNumber } from '../utils/vietnamese';
 
@@ -34,6 +36,7 @@ interface RoomDetailModalProps {
   onEditWorker: (worker: Worker) => void;
   onTransferWorker: (worker: Worker) => void;
   onDeleteWorker: (worker: Worker) => void;
+  onOpenIdCardsPrint?: () => void;
 }
 
 export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
@@ -47,6 +50,7 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
   onEditWorker,
   onTransferWorker,
   onDeleteWorker,
+  onOpenIdCardsPrint,
 }) => {
   if (!room) return null;
 
@@ -56,12 +60,15 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
   const isFull = count >= maxCapacity;
   const percentage = Math.round((count / maxCapacity) * 100);
 
-  // Tạo map giường (1 -> bedCount hoặc 20)
-  const totalBeds = room.bedCount || 20;
+  // Tạo map giường
   const bedMap = new Map<number, Worker>();
   safeWorkers.forEach((w) => {
     bedMap.set(w.bedNumber, w);
   });
+
+  // Số lượng ô giường hiển thị tự động co giãn theo số công nhân thực tế
+  const maxBedNumberUsed = Math.max(0, ...Array.from(bedMap.keys()));
+  const totalBeds = Math.max(room.bedCount || 20, maxBedNumberUsed, count + 1);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 lg:p-6">
@@ -85,7 +92,7 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-400 truncate">
-                Tối đa {maxCapacity} người • {room.bedCount || 20} giường • {room.lockerCount || 20} tủ đồ
+                Đang ở {count} người (Không giới hạn) • Chuẩn thiết kế: {maxCapacity} chỗ • {room.lockerCount || 20} tủ đồ
               </p>
             </div>
           </div>
@@ -107,60 +114,73 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
                 Tình trạng:
               </span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                isFull
-                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                count > maxCapacity
+                  ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                  : isFull
+                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
                   : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
               }`}>
-                {count}/{maxCapacity} người ({percentage}%)
+                {count} người đang ở
               </span>
               <span className="text-xs text-slate-500">
-                • Còn trống <strong className="text-emerald-700 font-bold">{maxCapacity - count}</strong> chỗ
+                • {count >= maxCapacity ? 'Có thể tiếp tục thêm không giới hạn' : `Còn ${maxCapacity - count} chỗ theo chuẩn thiết kế`}
               </span>
             </div>
 
-            {!isFull && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {onOpenIdCardsPrint && count > 0 && (
+                <button
+                  id="btn-export-room-idcards"
+                  onClick={onOpenIdCardsPrint}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs touch-manipulation min-h-[38px]"
+                  title="In hoặc xuất hình ảnh 2 mặt CCCD của các công nhân trong phòng này"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>In / Xuất CCCD 2 mặt ({count})</span>
+                </button>
+              )}
+
               <button
                 id="btn-quick-add-worker"
                 onClick={() => {
-                  // Tìm giường trống đầu tiên
-                  for (let i = 1; i <= totalBeds; i++) {
-                    if (!bedMap.has(i)) {
-                      onAddWorkerToBed(i);
-                      break;
-                    }
+                  // Tìm giường trống đầu tiên hoặc cấp số tiếp theo
+                  let targetBed = 1;
+                  while (bedMap.has(targetBed)) {
+                    targetBed++;
                   }
+                  onAddWorkerToBed(targetBed);
                 }}
                 className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs touch-manipulation min-h-[38px]"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>+ Thêm nhân viên vào phòng này</span>
               </button>
-            )}
+            </div>
           </div>
 
           {/* Progress Visual */}
           <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
             <div
               className={`h-2 transition-all duration-300 ${
-                isFull ? 'bg-rose-500' : count >= 16 ? 'bg-amber-500' : 'bg-emerald-500'
+                count > maxCapacity ? 'bg-purple-500' : isFull ? 'bg-blue-500' : count >= 16 ? 'bg-amber-500' : 'bg-emerald-500'
               }`}
-              style={{ width: `${percentage}%` }}
+              style={{ width: `${Math.min(100, percentage)}%` }}
             ></div>
           </div>
         </div>
 
-        {/* 20 Beds Interactive Layout */}
+        {/* Beds Interactive Layout */}
         <div className="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-xs sm:text-sm font-bold text-slate-800">
-              Sơ đồ {totalBeds} Vị Trí Giường Ngủ:
+              Sơ đồ Vị Trí Giường Ngủ (Hiển thị {totalBeds} vị trí):
             </h4>
             <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-slate-500">
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> Đang ở ({count})
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span> Trống ({maxCapacity - count})
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span> Vị trí trống ({Math.max(0, totalBeds - count)})
               </span>
             </div>
           </div>
@@ -182,7 +202,7 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
                       {/* Bed header */}
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[11px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-lg border border-blue-200">
-                          Giường #{bedNumber} • Tủ #{worker.lockerNumber || bedNumber}
+                          Giường #{bedNumber} • {worker.lockerNumber !== undefined ? `${worker.lockerNumber} tủ` : '1 tủ'}
                         </span>
                         <span className="text-[10px] font-mono text-slate-500 font-semibold">
                           {worker.code}
@@ -282,7 +302,19 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
+        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+          <div>
+            {onOpenIdCardsPrint && count > 0 && (
+              <button
+                type="button"
+                onClick={onOpenIdCardsPrint}
+                className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-2xs min-h-[40px]"
+              >
+                <Printer className="w-4 h-4" />
+                <span>In / Xuất ảnh CCCD 2 mặt ({count} người)</span>
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="w-full sm:w-auto px-5 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer touch-manipulation min-h-[44px]"

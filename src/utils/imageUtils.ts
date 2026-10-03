@@ -1,7 +1,18 @@
 /**
- * Tiện ích nén và xử lý ảnh chân dung công nhân
- * Đảm bảo kích thước nhẹ (< 60KB), tối ưu lưu trữ Firestore và hiển thị mượt mà.
+ * Tiện ích nén và xử lý ảnh thẻ Căn Cước Công Dân (CCCD) và ảnh chân dung công nhân
+ * Chuẩn chất lượng HD sắc nét (1536 x 970px, Quality 0.90)
+ * Tối ưu hóa cho phép nhìn rõ nét từng chữ số CCCD, ngày sinh, quê quán, con dấu
+ * đồng thời dung lượng gọn gàng (~120-180KB) tối ưu hạn mức lưu trữ Firestore.
  */
+
+// Kích thước chuẩn HD cho thẻ Căn cước công dân (Tỷ lệ 85.6mm x 53.98mm ~ 1.586)
+export const HD_CARD_WIDTH = 1536;
+export const HD_CARD_HEIGHT = 970;
+export const HD_CARD_QUALITY = 0.90;
+
+// Kích thước chuẩn HD cho ảnh vuông / chân dung
+export const HD_PORTRAIT_SIZE = 800;
+export const HD_PORTRAIT_QUALITY = 0.90;
 
 export const fileToDataUrl = (file: File | Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -14,9 +25,9 @@ export const fileToDataUrl = (file: File | Blob): Promise<string> => {
 
 export const compressAndCropImage = (
   dataUrl: string,
-  targetWidth = 400,
-  targetHeight = 400,
-  quality = 0.82
+  targetWidth = HD_PORTRAIT_SIZE,
+  targetHeight = HD_PORTRAIT_SIZE,
+  quality = HD_PORTRAIT_QUALITY
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -70,8 +81,8 @@ export const compressAndCropImage = (
 
 export const captureVideoFrameToDataUrl = (
   video: HTMLVideoElement,
-  targetSize = 400,
-  quality = 0.85
+  targetSize = HD_PORTRAIT_SIZE,
+  quality = HD_PORTRAIT_QUALITY
 ): string | null => {
   try {
     const canvas = document.createElement('canvas');
@@ -80,8 +91,8 @@ export const captureVideoFrameToDataUrl = (
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    const videoWidth = video.videoWidth || 640;
-    const videoHeight = video.videoHeight || 480;
+    const videoWidth = video.videoWidth || 1280;
+    const videoHeight = video.videoHeight || 720;
     const minDim = Math.min(videoWidth, videoHeight);
 
     const sx = (videoWidth - minDim) / 2;
@@ -110,15 +121,15 @@ export const captureVideoFrameToDataUrl = (
 };
 
 /**
- * Nén và tối ưu hóa ảnh thẻ Căn cước công dân (CCCD)
+ * Nén và xử lý ảnh thẻ Căn cước công dân (CCCD) đạt chuẩn HD Sắc Nét
  * Giữ tỷ lệ thẻ hình chữ nhật tiêu chuẩn (khoảng 85.6mm x 54mm ~ 1.58:1)
- * Giúp số và thông tin chữ trên thẻ sắc nét, rõ ràng và dung lượng nhẹ lưu Firestore.
+ * Mặc định kích thước 1536x970 px, chất lượng 0.90 cho phép đọc rõ từng chi tiết nhỏ
  */
 export const compressCardImage = (
   dataUrl: string,
-  targetWidth = 850,
-  targetHeight = 540,
-  quality = 0.82
+  targetWidth = HD_CARD_WIDTH,
+  targetHeight = HD_CARD_HEIGHT,
+  quality = HD_CARD_QUALITY
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -189,13 +200,13 @@ export const compressCardImage = (
 };
 
 /**
- * Chụp khung hình trực tiếp từ video luồng camera với tỷ lệ thẻ Căn cước công dân
+ * Chụp khung hình trực tiếp từ video luồng camera với độ phân giải HD chuẩn thẻ CCCD
  */
 export const captureVideoFrameToCardDataUrl = (
   video: HTMLVideoElement,
-  targetWidth = 850,
-  targetHeight = 540,
-  quality = 0.85
+  targetWidth = HD_CARD_WIDTH,
+  targetHeight = HD_CARD_HEIGHT,
+  quality = HD_CARD_QUALITY
 ): string | null => {
   try {
     const canvas = document.createElement('canvas');
@@ -204,8 +215,8 @@ export const captureVideoFrameToCardDataUrl = (
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    const videoWidth = video.videoWidth || 1280;
-    const videoHeight = video.videoHeight || 720;
+    const videoWidth = video.videoWidth || 1920;
+    const videoHeight = video.videoHeight || 1080;
     const videoRatio = videoWidth / videoHeight;
     const targetRatio = targetWidth / targetHeight;
 

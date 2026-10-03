@@ -15,7 +15,10 @@ import {
 import { 
   captureVideoFrameToCardDataUrl, 
   compressCardImage, 
-  fileToDataUrl 
+  fileToDataUrl,
+  HD_CARD_WIDTH,
+  HD_CARD_HEIGHT,
+  HD_CARD_QUALITY
 } from '../utils/imageUtils';
 
 interface CameraCaptureModalProps {
@@ -84,14 +87,28 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
+      let stream: MediaStream;
+      try {
+        // Ưu tiên chuẩn độ phân giải Full HD (1080p)
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false
+        });
+      } catch {
+        // Dự phòng camera hỗ trợ chuẩn HD 720p
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      }
 
       streamRef.current = stream;
       if (videoRef.current) {
@@ -136,7 +153,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     };
   }, [isOpen, facingMode, startCamera, stopCamera]);
 
-  // Chụp ảnh từ luồng video trực tiếp
+  // Chụp ảnh từ luồng video trực tiếp chuẩn HD Sắc Nét
   const takeSnapshot = useCallback(async () => {
     if (!videoRef.current) return;
 
@@ -153,10 +170,20 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     }
 
     setIsProcessing(true);
-    const rawDataUrl = captureVideoFrameToCardDataUrl(videoRef.current, 850, 540, 0.85);
+    const rawDataUrl = captureVideoFrameToCardDataUrl(
+      videoRef.current, 
+      HD_CARD_WIDTH, 
+      HD_CARD_HEIGHT, 
+      HD_CARD_QUALITY
+    );
 
     if (rawDataUrl) {
-      const compressed = await compressCardImage(rawDataUrl, 850, 540, 0.85);
+      const compressed = await compressCardImage(
+        rawDataUrl, 
+        HD_CARD_WIDTH, 
+        HD_CARD_HEIGHT, 
+        HD_CARD_QUALITY
+      );
       setPreviewPhoto(compressed);
       stopCamera();
     } else {
@@ -200,7 +227,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     }
   };
 
-  // Xử lý khi chọn file ảnh tải lên / chụp từ input file
+  // Xử lý khi chọn file ảnh tải lên / chụp từ input file chuẩn HD
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -209,7 +236,12 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     setErrorMessage('');
     try {
       const rawData = await fileToDataUrl(file);
-      const compressed = await compressCardImage(rawData, 850, 540, 0.85);
+      const compressed = await compressCardImage(
+        rawData, 
+        HD_CARD_WIDTH, 
+        HD_CARD_HEIGHT, 
+        HD_CARD_QUALITY
+      );
       setPreviewPhoto(compressed);
       stopCamera();
     } catch (err) {
@@ -241,9 +273,15 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <h3 className="text-sm sm:text-base font-bold text-white">
                 {title}
               </h3>
-              <p className="text-xs text-slate-400">
-                {displaySubtitle}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-slate-400">
+                  {displaySubtitle}
+                </p>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.2 rounded shadow-2xs">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  HD 1080p
+                </span>
+              </div>
             </div>
           </div>
           <button
@@ -299,7 +337,11 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                 />
                 <div className="absolute top-3 left-3 bg-emerald-600/90 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 backdrop-blur-xs">
                   <Check className="w-3.5 h-3.5" />
-                  <span>Ảnh CCCD đã chụp</span>
+                  <span>Ảnh CCCD chuẩn HD</span>
+                </div>
+                <div className="absolute top-3 right-3 bg-slate-900/80 text-amber-400 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border border-amber-400/30 backdrop-blur-xs flex items-center gap-1 shadow-md">
+                  <Sparkles className="w-3 h-3" />
+                  <span>HD 1536×970</span>
                 </div>
               </div>
             ) : (
@@ -319,9 +361,15 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                     {/* 4 góc định vị thẻ căn cước */}
                     <div className="w-full h-full border-2 border-dashed border-emerald-400/80 rounded-xl relative flex flex-col items-center justify-between p-2 shadow-[0_0_25px_rgba(16,185,129,0.25)]">
                       {/* Top badge */}
-                      <div className="bg-emerald-600/90 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
-                        <CreditCard className="w-3 h-3" />
-                        <span>KHUNG CĂN CƯỚC CÔNG DÂN</span>
+                      <div className="flex items-center gap-2">
+                        <div className="bg-emerald-600/90 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                          <CreditCard className="w-3 h-3" />
+                          <span>KHUNG CĂN CƯỚC CÔNG DÂN</span>
+                        </div>
+                        <div className="bg-blue-600/90 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1 backdrop-blur-xs">
+                          <Sparkles className="w-3 h-3 text-amber-300" />
+                          <span>HD 1080p</span>
+                        </div>
                       </div>
 
                       {/* Center helper */}

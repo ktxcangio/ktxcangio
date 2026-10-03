@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Zone, Block, Room, Worker } from '../types';
 import { generateInitialRooms } from '../data/dormitoryData';
+import { DeleteZoneModal } from './DeleteZoneModal';
 
 interface StructureManagerModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ interface StructureManagerModalProps {
   workers?: Worker[];
   onClose: () => void;
   onSaveZones: (newZones: Zone[], deletedZoneIds?: string[]) => Promise<void> | void;
+  onDeleteZoneDirectly?: (zoneId: string, workerHandling: 'unassign' | 'delete') => Promise<void> | void;
 }
 
 export const StructureManagerModal: React.FC<StructureManagerModalProps> = ({
@@ -35,10 +37,16 @@ export const StructureManagerModal: React.FC<StructureManagerModalProps> = ({
   workers = [],
   onClose,
   onSaveZones,
+  onDeleteZoneDirectly,
 }) => {
   const [currentZones, setCurrentZones] = useState<Zone[]>(zones);
   const [deletedZoneIds, setDeletedZoneIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'zone' | 'block' | 'room'>('zone');
+  
+  // Pending delete states (replacing window.confirm)
+  const [zonePendingDelete, setZonePendingDelete] = useState<Zone | null>(null);
+  const [blockPendingDelete, setBlockPendingDelete] = useState<Block | null>(null);
+  const [roomPendingDelete, setRoomPendingDelete] = useState<Room | null>(null);
   
   // Selected IDs for hierarchical editing
   const [selectedZoneId, setSelectedZoneId] = useState<string>(zones[0]?.id || '');
@@ -178,22 +186,22 @@ export const StructureManagerModal: React.FC<StructureManagerModalProps> = ({
   };
 
   const handleDeleteZone = (zoneToDelete: Zone) => {
-    const occupants = getZoneWorkers(zoneToDelete.id);
-    if (occupants.length > 0) {
-      const warningText = `Khu "${zoneToDelete.name}" hiện đang có ${occupants.length} công nhân đang cư trú! Bạn có chắc chắn muốn xóa không? (Nên chuyển phòng cho công nhân trước khi xóa).`;
-      if (!window.confirm(warningText)) return;
-    } else {
-      if (!window.confirm(`Xác nhận xóa "${zoneToDelete.name}" và toàn bộ các Dãy, Phòng trực thuộc?`)) return;
-    }
+    setZonePendingDelete(zoneToDelete);
+  };
 
-    const updated = currentZones.filter(z => z.id !== zoneToDelete.id);
+  const handleConfirmExecuteDeleteZone = async (zoneId: string, workerHandling: 'unassign' | 'delete') => {
+    if (onDeleteZoneDirectly) {
+      await onDeleteZoneDirectly(zoneId, workerHandling);
+    }
+    const updated = currentZones.filter(z => z.id !== zoneId);
     setCurrentZones(updated);
-    setDeletedZoneIds(prev => [...prev, zoneToDelete.id]);
+    setDeletedZoneIds(prev => [...prev, zoneId]);
     
-    if (selectedZoneId === zoneToDelete.id) {
+    if (selectedZoneId === zoneId) {
       setSelectedZoneId(updated[0]?.id || '');
     }
-    setAlertMessage({ type: 'success', text: `Đã xóa "${zoneToDelete.name}" khỏi danh sách.` });
+    setZonePendingDelete(null);
+    setAlertMessage({ type: 'success', text: `Đã xóa Khu thành công và cập nhật lên hệ thống.` });
   };
 
   // ==================== 2. THÊM & XÓA DÃY (BLOCK) ====================
@@ -245,14 +253,12 @@ export const StructureManagerModal: React.FC<StructureManagerModalProps> = ({
   };
 
   const handleDeleteBlock = (blockToDelete: Block) => {
-    if (!activeZone) return;
-    const occupants = getBlockWorkers(blockToDelete.id);
-    if (occupants.length > 0) {
-      const msg = `Dãy "${blockToDelete.name}" hiện đang có ${occupants.length} công nhân đang ở. Bạn có chắc chắn muốn xóa dãy này cùng toàn bộ các phòng bên trong?`;
-      if (!window.confirm(msg)) return;
-    } else {
-      if (!window.confirm(`Xác nhận xóa "${blockToDelete.name}" và các phòng trực thuộc?`)) return;
-    }
+    setBlockPendingDelete(blockToDelete);
+  };
+
+  const handleConfirmExecuteDeleteBlock = () => {
+    if (!activeZone || !blockPendingDelete) return;
+    const blockToDelete = blockPendingDelete;
 
     const updated = currentZones.map(z => {
       if (z.id === activeZone.id) {
@@ -266,6 +272,7 @@ export const StructureManagerModal: React.FC<StructureManagerModalProps> = ({
 
     setCurrentZones(updated);
     setSelectedBlockId('');
+    setBlockPendingDelete(null);
     setAlertMessage({ type: 'success', text: `Đã xóa "${blockToDelete.name}" khỏi ${activeZone.name}.` });
   };
 
@@ -323,15 +330,12 @@ export const StructureManagerModal: React.FC<StructureManagerModalProps> = ({
   };
 
   const handleDeleteRoom = (roomToDelete: Room) => {
-    if (!activeZone || !activeBlock) return;
-    const occupants = getRoomWorkers(roomToDelete.id);
-    if (occupants.length > 0) {
-      const msg = `Phòng "${roomToDelete.name}" hiện đang có ${occupants.length} công nhân đang ở (${occupants.map(o => o.fullName).slice(0, 3).join(', ')}...). Vui lòng chuyển công nhân sang phòng khác trước khi xóa.`;
-      alert(msg);
-      return;
-    }
+    setRoomPendingDelete(roomToDelete);
+  };
 
-    if (!window.confirm(`Xác nhận xóa "${roomToDelete.name}" khỏi ${activeBlock.name}?`)) return;
+  const handleConfirmExecuteDeleteRoom = () => {
+    if (!activeZone || !activeBlock || !roomPendingDelete) return;
+    const roomToDelete = roomPendingDelete;
 
     const updated = currentZones.map(z => {
       if (z.id === activeZone.id) {
@@ -352,6 +356,7 @@ export const StructureManagerModal: React.FC<StructureManagerModalProps> = ({
     });
 
     setCurrentZones(updated);
+    setRoomPendingDelete(null);
     setAlertMessage({ type: 'success', text: `Đã xóa "${roomToDelete.name}".` });
   };
 
@@ -1106,6 +1111,89 @@ export const StructureManagerModal: React.FC<StructureManagerModalProps> = ({
         </div>
 
       </div>
+
+      {/* 1. Modal Xóa Khu KTX chuyên dụng */}
+      {zonePendingDelete && (
+        <DeleteZoneModal
+          isOpen={!!zonePendingDelete}
+          zone={zonePendingDelete}
+          workers={workers}
+          onClose={() => setZonePendingDelete(null)}
+          onConfirmDelete={(zoneId, workerHandling) => handleConfirmExecuteDeleteZone(zoneId, workerHandling)}
+        />
+      )}
+
+      {/* 2. Dialog Xóa Dãy chuyên dụng */}
+      {blockPendingDelete && (
+        <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3">
+          <div className="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h3 className="font-bold text-base text-slate-900">Xác nhận xóa Dãy</h3>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa <strong>{blockPendingDelete.name}</strong> thuộc {activeZone?.name}?
+              {getBlockWorkers(blockPendingDelete.id).length > 0 && (
+                <span className="block mt-2 text-rose-600 font-bold bg-rose-50 p-2 rounded-lg border border-rose-200">
+                  ⚠️ Dãy này hiện có {getBlockWorkers(blockPendingDelete.id).length} công nhân đang ở.
+                </span>
+              )}
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setBlockPendingDelete(null)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExecuteDeleteBlock}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer"
+              >
+                Xác nhận xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Dialog Xóa Phòng chuyên dụng */}
+      {roomPendingDelete && (
+        <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3">
+          <div className="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h3 className="font-bold text-base text-slate-900">Xác nhận xóa Phòng</h3>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa <strong>{roomPendingDelete.name}</strong> khỏi {activeBlock?.name}?
+              {getRoomWorkers(roomPendingDelete.id).length > 0 && (
+                <span className="block mt-2 text-rose-600 font-bold bg-rose-50 p-2 rounded-lg border border-rose-200">
+                  ⚠️ Phòng này đang có {getRoomWorkers(roomPendingDelete.id).length} công nhân. Nên chuyển phòng trước khi xóa!
+                </span>
+              )}
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRoomPendingDelete(null)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExecuteDeleteRoom}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer"
+              >
+                Xác nhận xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

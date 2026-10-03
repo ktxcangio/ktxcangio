@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Worker, 
   Zone, 
@@ -19,7 +19,13 @@ import {
   Trash2, 
   Eye, 
   Briefcase,
-  Shield
+  Shield,
+  CheckSquare,
+  Square,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  AlertCircle
 } from 'lucide-react';
 
 interface WorkerTableViewProps {
@@ -45,9 +51,17 @@ export const WorkerTableView: React.FC<WorkerTableViewProps> = ({
   onDeleteWorker,
   onSelectRoomById,
 }) => {
+  const [workerPendingDelete, setWorkerPendingDelete] = useState<Worker | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const safeWorkers = workers || [];
   const safeRooms = rooms || [];
   const safeZones = zones || [];
+
+  // Quản lý chọn nhiều checkbox (Sapo Bulk Actions)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Phân trang chuẩn Sapo
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
 
   // Helper tra cứu tên Phòng, Dãy, Khu
   const getRoomHierarchy = (roomId: string) => {
@@ -64,18 +78,46 @@ export const WorkerTableView: React.FC<WorkerTableViewProps> = ({
     };
   };
 
+  // Toggle chọn một nhân viên
+  const handleToggleSelectOne = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  // Toggle chọn tất cả trang hiện tại
+  const handleToggleSelectAll = (currentPageWorkers: Worker[]) => {
+    const currentIds = currentPageWorkers.map(w => w.id);
+    const isAllSelected = currentIds.every(id => selectedIds.includes(id));
+    if (isAllSelected) {
+      setSelectedIds(prev => prev.filter(id => !currentIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...currentIds])));
+    }
+  };
+
+  // Tính toán phân trang
+  const totalPages = Math.max(1, Math.ceil(safeWorkers.length / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const paginatedWorkers = safeWorkers.slice(startIndex, startIndex + pageSize);
+
+  const isAllCurrentSelected = 
+    paginatedWorkers.length > 0 && 
+    paginatedWorkers.every(w => selectedIds.includes(w.id));
+
   if (safeWorkers.length === 0) {
     return (
-      <div className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs">
-        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 text-slate-400">
-          <User className="w-7 h-7 sm:w-8 sm:h-8" />
+      <div className="bg-white rounded-lg border border-[#E4E8EC] p-8 sm:p-12 text-center shadow-xs">
+        <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
+          <User className="w-7 h-7" />
         </div>
-        <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-1">
-          Không tìm thấy nhân viên nào
+        <h3 className="text-base font-bold text-slate-800 mb-1">
+          Không tìm thấy công nhân nào
         </h3>
-        <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mb-4">
+        <p className="text-xs text-slate-500 max-w-md mx-auto mb-4">
           {searchQuery 
-            ? `Không có kết quả nào khớp với từ khóa "${searchQuery}". Hãy thử tìm không dấu (vd: nguyen van an, thao, 1001, cccd) hoặc xóa bớt bộ lọc.`
+            ? `Không có kết quả nào khớp với từ khóa "${searchQuery}". Hãy thử tìm không dấu hoặc xóa bớt bộ lọc.`
             : 'Chưa có nhân viên nào trong danh sách hoặc các phòng thuộc bộ lọc đang trống.'}
         </p>
       </div>
@@ -83,192 +125,128 @@ export const WorkerTableView: React.FC<WorkerTableViewProps> = ({
   }
 
   return (
-    <div className="space-y-4 pb-12">
-      {/* Mobile Card View (< md screens) */}
-      <div className="md:hidden space-y-3">
-        <div className="text-xs font-semibold text-slate-500 px-1 flex items-center justify-between">
-          <span>Danh sách <strong>{workers.length}</strong> nhân viên</span>
-          <span>Chạm vào thẻ để xem chi tiết</span>
-        </div>
-
-        {workers.map((worker) => {
-          const hierarchy = getRoomHierarchy(worker.roomId);
-
-          return (
-            <div
-              key={worker.id}
-              id={`worker-card-mobile-${worker.id}`}
-              className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs hover:border-blue-300 transition-all space-y-3"
+    <div className="space-y-3">
+      {/* Sapo Batch Action Toolbar (khi có chọn ít nhất 1 dòng) */}
+      {selectedIds.length > 0 && (
+        <div className="bg-[#E5F3FF] border border-[#BAE0FF] rounded-lg p-2.5 px-4 flex items-center justify-between gap-3 text-xs animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-[#0088FF]">Đã chọn {selectedIds.length} công nhân</span>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-slate-500 hover:text-slate-700 underline cursor-pointer"
             >
-              {/* Card Header: Avatar, Name, Code, Bed */}
-              <div className="flex items-start justify-between gap-3">
-                <div 
-                  onClick={() => onSelectWorker(worker)}
-                  className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
-                >
-                  <div className={`w-11 h-11 rounded-2xl ${worker.avatarColor || 'bg-blue-600'} text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-xs overflow-hidden`}>
-                    {worker.photoUrl ? (
-                      <img
-                        src={worker.photoUrl}
-                        alt={worker.fullName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      worker.fullName.charAt(0)
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-slate-900 text-sm truncate">
-                        {worker.fullName}
-                      </h4>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        worker.gender === 'Nam' ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-800'
-                      }`}>
-                        {worker.gender}
-                      </span>
-                    </div>
-                    <div className="text-xs font-mono font-bold text-blue-700 mt-0.5">
-                      {worker.code} • <span className="font-sans font-normal text-slate-500">CCCD: {worker.citizenId}</span>
-                    </div>
-                  </div>
-                </div>
+              Bỏ chọn
+            </button>
+          </div>
 
-                {/* Bed Pill */}
-                <div className="shrink-0 text-center">
-                  <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200">
-                    G.{worker.bedNumber} / T.{worker.lockerNumber || worker.bedNumber}
-                  </span>
-                </div>
-              </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const targetWorker = safeWorkers.find(w => w.id === selectedIds[0]);
+                if (targetWorker) onTransferWorker(targetWorker);
+              }}
+              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold rounded-md flex items-center gap-1 cursor-pointer"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 text-[#0088FF]" />
+              <span>Đổi phòng</span>
+            </button>
 
-              {/* Location & Team Leader Details */}
-              <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                <button
-                  onClick={() => onSelectRoomById(worker.roomId)}
-                  className="text-left group cursor-pointer"
-                >
-                  <span className="text-[10px] text-slate-400 block font-medium">Vị trí phòng:</span>
-                  <span className="font-bold text-slate-800 group-hover:text-blue-600 flex items-center gap-1">
-                    <Bed className="w-3 h-3 text-blue-600 shrink-0" />
-                    {hierarchy.roomName}
-                  </span>
-                  <span className="text-[10px] text-slate-500 block truncate">
-                    {hierarchy.zoneName} &gt; {hierarchy.blockName}
-                  </span>
-                </button>
+            <button
+              onClick={() => setIsBulkDeleting(true)}
+              className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-md flex items-center gap-1 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Xóa đã chọn</span>
+            </button>
+          </div>
+        </div>
+      )}
 
-                <div>
-                  <span className="text-[10px] text-slate-400 block font-medium">Tổ trưởng:</span>
-                  <span className="font-semibold text-slate-800 block truncate">
-                    {worker.teamLeaderName || 'Chưa gán'}
-                  </span>
-                  <span className="text-[10px] text-slate-500 block truncate">
-                    SĐT: {worker.teamLeaderPhone || 'N/A'}
-                  </span>
-                </div>
-              </div>
+      {/* Sapo Enterprise Table Container */}
+      <div className="bg-white rounded-lg border border-[#E4E8EC] shadow-xs overflow-hidden">
+        {/* Table Top Summary Bar */}
+        <div className="p-3 border-b border-[#E4E8EC] bg-[#FAFBFC] flex items-center justify-between text-xs text-slate-600">
+          <div className="flex items-center gap-2 font-medium">
+            <span>Danh sách <strong className="text-slate-900 font-bold">{safeWorkers.length}</strong> công nhân KTX</span>
+          </div>
 
-              {/* Address */}
-              {worker.address && (
-                <div className="text-xs text-slate-600 flex items-center gap-1 truncate px-1">
-                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span className="truncate">{worker.address}</span>
-                </div>
-              )}
-
-              {/* Actions Bar */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
-                {/* Team leader phone */}
-                {worker.teamLeaderPhone ? (
-                  <a
-                    href={`tel:${worker.teamLeaderPhone}`}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 active:bg-emerald-100 transition-colors touch-manipulation min-h-[36px]"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>Gọi Tổ trưởng</span>
-                  </a>
-                ) : (
-                  <span className="text-slate-400 text-xs">Không có SĐT</span>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => onTransferWorker(worker)}
-                    title="Đổi phòng"
-                    className="p-2 text-slate-600 hover:text-amber-600 active:bg-amber-50 rounded-xl transition-colors cursor-pointer touch-manipulation min-h-[36px] min-w-[36px] flex items-center justify-center border border-slate-200"
-                  >
-                    <ArrowRightLeft className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => onEditWorker(worker)}
-                    title="Chỉnh sửa"
-                    className="p-2 text-slate-600 hover:text-blue-600 active:bg-blue-50 rounded-xl transition-colors cursor-pointer touch-manipulation min-h-[36px] min-w-[36px] flex items-center justify-center border border-slate-200"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => onSelectWorker(worker)}
-                    title="Xem hồ sơ"
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs flex items-center gap-1 touch-manipulation min-h-[36px]"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Chi tiết</span>
-                  </button>
-                </div>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span>Hiển thị:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-[#D3D5D7] rounded px-2 py-0.5 text-xs text-slate-700 font-medium cursor-pointer outline-hidden"
+              >
+                <option value={15}>15 / trang</option>
+                <option value={20}>20 / trang</option>
+                <option value={50}>50 / trang</option>
+                <option value={100}>100 / trang</option>
+              </select>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Desktop Responsive Table (>= md screens) */}
-      <div className="hidden md:block bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
-          <div className="text-sm text-slate-600 font-medium">
-            Danh sách <strong className="text-slate-900 font-bold">{workers.length}</strong> nhân viên KTX
           </div>
         </div>
 
+        {/* Desktop Table View */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-700">
-            <thead className="bg-slate-100 text-slate-700 font-semibold text-xs border-b border-slate-200">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead className="bg-[#FAFBFC] text-slate-600 font-bold uppercase tracking-wider border-b border-[#E4E8EC]">
               <tr>
-                <th className="py-3.5 px-4">1. Mã NV</th>
-                <th className="py-3.5 px-4">2. Họ và Tên</th>
-                <th className="py-3.5 px-4">3. Giới tính</th>
-                <th className="py-3.5 px-4">4. Ngày sinh</th>
-                <th className="py-3.5 px-4">5. Thôn/Xã/Tỉnh</th>
-                <th className="py-3.5 px-4">6. Số CCCD</th>
-                <th className="py-3.5 px-4">7. Tổ trưởng</th>
-                <th className="py-3.5 px-4">8. SĐT Tổ trưởng</th>
-                <th className="py-3.5 px-4">Vị trí (Khu &gt; Dãy &gt; Phòng)</th>
-                <th className="py-3.5 px-4 text-center">G / Tủ</th>
-                <th className="py-3.5 px-4 text-center">Thao tác</th>
+                <th className="py-3 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllCurrentSelected}
+                    onChange={() => handleToggleSelectAll(paginatedWorkers)}
+                    className="w-4 h-4 rounded text-[#0088FF] focus:ring-[#0088FF] border-slate-300 cursor-pointer"
+                  />
+                </th>
+                <th className="py-3 px-3">Mã NV</th>
+                <th className="py-3 px-4">Họ và Tên</th>
+                <th className="py-3 px-3">Giới tính</th>
+                <th className="py-3 px-3">Ngày sinh</th>
+                <th className="py-3 px-4">Địa chỉ quê quán</th>
+                <th className="py-3 px-3">Số CCCD</th>
+                <th className="py-3 px-3">Tổ trưởng & SĐT</th>
+                <th className="py-3 px-4">Vị trí (Khu › Dãy › Phòng)</th>
+                <th className="py-3 px-3 text-center">G / Số tủ</th>
+                <th className="py-3 px-4 text-center">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200/70">
-              {workers.map((worker) => {
+            <tbody className="divide-y divide-[#E4E8EC]">
+              {paginatedWorkers.map((worker) => {
                 const hierarchy = getRoomHierarchy(worker.roomId);
+                const isSelected = selectedIds.includes(worker.id);
 
                 return (
                   <tr 
                     key={worker.id}
                     id={`worker-row-${worker.id}`}
-                    className="hover:bg-blue-50/40 transition-colors"
+                    className={`transition-colors ${
+                      isSelected ? 'bg-[#F0F7FF]' : 'hover:bg-[#F9FAFB]'
+                    }`}
                   >
-                    {/* 1. Mã NV */}
-                    <td className="py-3 px-4 font-mono font-bold text-xs text-blue-700 whitespace-nowrap">
+                    {/* Checkbox */}
+                    <td className="py-2.5 px-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleSelectOne(worker.id)}
+                        className="w-4 h-4 rounded text-[#0088FF] focus:ring-[#0088FF] border-slate-300 cursor-pointer"
+                      />
+                    </td>
+
+                    {/* 1. Mã NV (Sapo Blue Link) */}
+                    <td className="py-2.5 px-3 font-mono font-bold text-xs text-[#0088FF] whitespace-nowrap">
                       {worker.code}
                     </td>
 
                     {/* 2. Họ Tên */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-xl ${worker.avatarColor || 'bg-blue-600'} text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs overflow-hidden`}>
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-7 h-7 rounded-md ${worker.avatarColor || 'bg-[#0088FF]'} text-white font-bold flex items-center justify-center text-[11px] shrink-0 overflow-hidden shadow-2xs`}>
                           {worker.photoUrl ? (
                             <img
                               src={worker.photoUrl}
@@ -281,114 +259,107 @@ export const WorkerTableView: React.FC<WorkerTableViewProps> = ({
                         </div>
                         <button
                           onClick={() => onSelectWorker(worker)}
-                          className="font-bold text-slate-900 hover:text-blue-600 transition-colors text-left text-sm cursor-pointer block truncate"
+                          className="font-bold text-slate-800 hover:text-[#0088FF] hover:underline transition-colors text-left text-xs cursor-pointer block truncate"
                         >
                           {worker.fullName}
                         </button>
                       </div>
                     </td>
 
-                    {/* 3. Giới tính */}
-                    <td className="py-3 px-4">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
-                        worker.gender === 'Nam' ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-800'
+                    {/* 3. Giới tính (Sapo Pastel Tag) */}
+                    <td className="py-2.5 px-3">
+                      <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                        worker.gender === 'Nam' 
+                          ? 'bg-[#E5F3FF] text-[#0088FF] border-[#BAE0FF]' 
+                          : 'bg-[#FDF2F8] text-[#DB2777] border-[#FBCFE8]'
                       }`}>
                         {worker.gender}
                       </span>
                     </td>
 
                     {/* 4. Ngày sinh */}
-                    <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
                       {formatDate(worker.birthDate) || '-'}
                     </td>
 
                     {/* 5. Địa chỉ */}
-                    <td className="py-3 px-4 text-xs text-slate-700 max-w-[180px] truncate" title={worker.address}>
+                    <td className="py-2.5 px-4 text-slate-700 max-w-[170px] truncate" title={worker.address}>
                       {worker.address || '-'}
                     </td>
 
                     {/* 6. Số CCCD */}
-                    <td className="py-3 px-4 font-mono font-semibold text-xs text-emerald-700 whitespace-nowrap">
-                      {worker.citizenId}
-                    </td>
-
-                    {/* 7. Tên tổ trưởng */}
-                    <td className="py-3 px-4 text-xs text-slate-800 font-medium whitespace-nowrap">
-                      {worker.teamLeaderName || '-'}
-                    </td>
-
-                    {/* 8. SĐT tổ trưởng */}
-                    <td className="py-3 px-4 text-xs whitespace-nowrap">
-                      {worker.teamLeaderPhone ? (
-                        <a href={`tel:${worker.teamLeaderPhone}`} className="text-emerald-700 font-semibold hover:underline">
-                          {formatPhoneNumber(worker.teamLeaderPhone)}
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </td>
-
-                    {/* Vị trí Phòng */}
-                    <td className="py-3 px-4">
-                      <button
-                        onClick={() => onSelectRoomById(worker.roomId)}
-                        className="text-left group cursor-pointer"
-                        title="Bấm để xem toàn bộ phòng này"
-                      >
-                        <div className="font-bold text-slate-800 group-hover:text-blue-600 flex items-center gap-1">
-                          <Bed className="w-3.5 h-3.5 text-blue-600" />
-                          {hierarchy.roomName}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {hierarchy.zoneName} &gt; {hierarchy.blockName}
-                        </div>
-                      </button>
-                    </td>
-
-                    {/* Số giường / Tủ */}
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-slate-100 font-bold text-slate-800 text-xs border border-slate-200">
-                        G#{worker.bedNumber} | T#{worker.lockerNumber || worker.bedNumber}
+                    <td className="py-2.5 px-3 font-mono font-semibold text-slate-800 whitespace-nowrap">
+                      <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                        {worker.citizenId}
                       </span>
                     </td>
 
+                    {/* 7 & 8. Tổ trưởng & SĐT */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <div className="font-medium text-slate-800">{worker.teamLeaderName || '-'}</div>
+                      {worker.teamLeaderPhone && (
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {formatPhoneNumber(worker.teamLeaderPhone)}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Vị trí KTX */}
+                    <td className="py-2.5 px-4 whitespace-nowrap">
+                      <button
+                        onClick={() => onSelectRoomById(worker.roomId)}
+                        className="inline-flex items-center gap-1 text-slate-700 hover:text-[#0088FF] hover:underline font-semibold cursor-pointer"
+                      >
+                        <span className="text-slate-400">{hierarchy.zoneName} › {hierarchy.blockName} ›</span>
+                        <span className="text-[#0088FF]">{hierarchy.roomName}</span>
+                      </button>
+                    </td>
+
+                    {/* Giường / Tủ */}
+                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <span className="bg-[#EBF7EE] text-[#1E8E3E] border border-[#BDE8C6] px-1.5 py-0.5 rounded font-bold">
+                        G.{worker.bedNumber}
+                      </span>
+                      {worker.lockerNumber !== undefined && (
+                        <span className="ml-1 text-slate-500 text-[10px] font-medium">
+                          ({worker.lockerNumber} tủ)
+                        </span>
+                      )}
+                    </td>
+
                     {/* Thao tác */}
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1">
+                    <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
                         <button
-                          id={`btn-view-worker-${worker.id}`}
                           onClick={() => onSelectWorker(worker)}
-                          title="Xem chi tiết"
-                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                          title="Xem chi tiết hồ sơ"
+                          className="p-1.5 text-slate-500 hover:text-[#0088FF] hover:bg-blue-50 rounded transition-colors cursor-pointer"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
 
                         <button
-                          id={`btn-transfer-worker-${worker.id}`}
                           onClick={() => onTransferWorker(worker)}
-                          title="Đổi phòng / Đổi giường"
-                          className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                          title="Đổi phòng cho công nhân"
+                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors cursor-pointer"
                         >
-                          <ArrowRightLeft className="w-4 h-4" />
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
                         </button>
 
                         <button
-                          id={`btn-edit-worker-${worker.id}`}
                           onClick={() => onEditWorker(worker)}
                           title="Chỉnh sửa thông tin"
-                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
                         >
-                          <Edit3 className="w-4 h-4" />
+                          <Edit3 className="w-3.5 h-3.5" />
                         </button>
 
                         <button
-                          id={`btn-delete-worker-${worker.id}`}
-                          onClick={() => onDeleteWorker(worker)}
-                          title="Trả phòng / Xóa nhân viên"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          onClick={() => setWorkerPendingDelete(worker)}
+                          title="Xóa công nhân"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -398,7 +369,108 @@ export const WorkerTableView: React.FC<WorkerTableViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Sapo Pagination Footer */}
+        <div className="p-3 border-t border-[#E4E8EC] bg-[#FAFBFC] flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-600">
+          <div>
+            Hiển thị <strong className="text-slate-900">{startIndex + 1}</strong> - <strong className="text-slate-900">{Math.min(startIndex + pageSize, safeWorkers.length)}</strong> trong tổng số <strong className="text-slate-900">{safeWorkers.length}</strong> công nhân
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={validCurrentPage <= 1}
+              className="p-1.5 rounded border border-[#D3D5D7] bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <span className="px-2 py-1 font-semibold text-slate-800">
+              Trang {validCurrentPage} / {totalPages}
+            </span>
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={validCurrentPage >= totalPages}
+              className="p-1.5 rounded border border-[#D3D5D7] bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* In-app modal: Xóa 1 công nhân */}
+      {workerPendingDelete && (
+        <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3">
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-rose-600">
+              <Trash2 className="w-5 h-5 shrink-0" />
+              <h3 className="font-bold text-base text-slate-900">Xóa hồ sơ công nhân</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn trả phòng và xóa hồ sơ công nhân <strong>{workerPendingDelete.fullName}</strong> ({workerPendingDelete.code}) khỏi ký túc xá?
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setWorkerPendingDelete(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteWorker(workerPendingDelete);
+                  setWorkerPendingDelete(null);
+                }}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer"
+              >
+                Xác nhận xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-app modal: Xóa hàng loạt công nhân */}
+      {isBulkDeleting && (
+        <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3">
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-rose-600">
+              <Trash2 className="w-5 h-5 shrink-0" />
+              <h3 className="font-bold text-base text-slate-900">Xóa hàng loạt công nhân</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa <strong>{selectedIds.length} công nhân đã chọn</strong> khỏi hệ thống? Dữ liệu phòng và giường sẽ được giải phóng ngay lập tức.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsBulkDeleting(false)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  selectedIds.forEach(id => {
+                    const w = safeWorkers.find(item => item.id === id);
+                    if (w) onDeleteWorker(w);
+                  });
+                  setSelectedIds([]);
+                  setIsBulkDeleting(false);
+                }}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer"
+              >
+                Xác nhận xóa {selectedIds.length} người
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

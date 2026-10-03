@@ -1,18 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Building2, 
   MapPin, 
   Users, 
   Bed, 
   Plus, 
-  ChevronRight, 
-  CheckCircle2, 
-  AlertCircle,
   Eye,
-  Sparkles
+  Sparkles,
+  ChevronRight,
+  Layers,
+  CheckCircle2,
+  AlertCircle,
+  DoorOpen,
+  ArrowLeft,
+  Trash2,
+  CreditCard,
+  Printer
 } from 'lucide-react';
 import { Zone, Block, Room, Worker } from '../types';
 import { matchVietnameseSearch } from '../utils/vietnamese';
+import { DeleteZoneModal } from './DeleteZoneModal';
 
 interface RoomGridViewProps {
   zones: Zone[];
@@ -21,9 +28,14 @@ interface RoomGridViewProps {
   searchQuery: string;
   selectedZoneId: string;
   selectedBlockId: string;
+  onFilterBlock?: (blockId: string) => void;
   onSelectRoom: (room: Room) => void;
   onAddWorkerToRoom: (room: Room) => void;
   onSelectWorker: (worker: Worker) => void;
+  onBackToOverview?: () => void;
+  onSelectZone?: (zoneId: string) => void;
+  onDeleteZone?: (zoneId: string, workerHandling: 'unassign' | 'delete') => Promise<void> | void;
+  onOpenIdCardsPrint?: (room: Room) => void;
 }
 
 export const RoomGridView: React.FC<RoomGridViewProps> = ({
@@ -33,10 +45,19 @@ export const RoomGridView: React.FC<RoomGridViewProps> = ({
   searchQuery = '',
   selectedZoneId = 'all',
   selectedBlockId = 'all',
+  onFilterBlock,
   onSelectRoom,
   onAddWorkerToRoom,
   onSelectWorker,
+  onBackToOverview,
+  onSelectZone,
+  onDeleteZone,
+  onOpenIdCardsPrint,
 }) => {
+  const [zonePendingDelete, setZonePendingDelete] = useState<Zone | null>(null);
+  // Trạng thái chọn Dãy nội bộ trong từng Khu (mặc định 'all')
+  const [activeBlockByZone, setActiveBlockByZone] = useState<Record<string, string>>({});
+
   // Nhóm workers theo roomId
   const workersByRoom = React.useMemo(() => {
     const map = new Map<string, Worker[]>();
@@ -56,240 +77,353 @@ export const RoomGridView: React.FC<RoomGridViewProps> = ({
   });
 
   return (
-    <div className="space-y-6 sm:space-y-8 pb-12">
+    <div className="space-y-4">
+      {/* Sapo Breadcrumb & Zone Navigation Bar khi đang xem một Khu cụ thể */}
+      {selectedZoneId !== 'all' && (
+        <div className="bg-white rounded-lg p-3 sm:p-4 border border-[#E4E8EC] shadow-2xs flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {onBackToOverview && (
+              <button
+                type="button"
+                onClick={onBackToOverview}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-100 hover:bg-[#E5F3FF] text-slate-700 hover:text-[#0088FF] font-semibold text-xs border border-slate-200 hover:border-[#0088FF]/30 transition-all cursor-pointer shrink-0 shadow-2xs"
+                title="Quay lại Màn hình Sơ đồ số liệu tổng quát KTX"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>‹ Quay lại Sơ đồ tổng quát</span>
+              </button>
+            )}
+
+            <div className="h-5 w-[1px] bg-slate-200 hidden sm:block"></div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-slate-400 text-xs hidden sm:inline">Khu hiện tại:</span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#E5F3FF] text-[#0088FF] font-bold text-xs border border-[#BAE0FF]">
+                <Building2 className="w-3.5 h-3.5" />
+                <span>{zones.find(z => z.id === selectedZoneId)?.name || 'Khu KTX'}</span>
+              </div>
+              {selectedBlockId !== 'all' && (
+                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-200">
+                  <span>Dãy: {zones.find(z => z.id === selectedZoneId)?.blocks?.find(b => b.id === selectedBlockId)?.name}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Thanh chuyển nhanh giữa các Khu khác */}
+          {zones.length > 1 && onSelectZone && (
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+              <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider shrink-0 mr-1 hidden lg:inline">
+                Chuyển Khu:
+              </span>
+              {zones.map((z) => (
+                <button
+                  key={z.id}
+                  type="button"
+                  onClick={() => onSelectZone(z.id)}
+                  className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    z.id === selectedZoneId
+                      ? 'bg-[#0088FF] text-white shadow-2xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {z.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {filteredZones.map((zone) => {
-        // Lọc blocks trong zone
-        const blocks = (zone.blocks || []).filter((block) => {
-          if (selectedBlockId !== 'all' && block.id !== selectedBlockId) return false;
-          return true;
-        });
-
-        if (blocks.length === 0) return null;
-
-        // Tính tổng phòng & sức chứa của Zone
+        const allZoneBlocks = zone.blocks || [];
         const zoneRooms = (rooms || []).filter(r => r.zoneId === zone.id);
         const zoneWorkers = (workers || []).filter(w => w.zoneId === zone.id);
         const zoneMaxCapacity = zoneRooms.reduce((sum, r) => sum + (r.maxCapacity || 20), 0);
 
+        // Lấy dãy được chọn
+        const currentZoneBlockSelection = selectedBlockId !== 'all'
+          ? selectedBlockId
+          : (activeBlockByZone[zone.id] || 'all');
+
+        // Lọc các dãy hiển thị
+        const visibleBlocks = allZoneBlocks.filter((block) => {
+          if (currentZoneBlockSelection !== 'all' && block.id !== currentZoneBlockSelection) {
+            return false;
+          }
+          return true;
+        });
+
+        if (allZoneBlocks.length === 0) return null;
+
         return (
-          <div key={zone.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Zone Header */}
-            <div className="bg-slate-900 text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center font-bold text-white text-lg shadow-md shrink-0">
+          <div 
+            key={zone.id} 
+            id={`zone-container-${zone.id}`}
+            className="bg-white rounded-lg border border-[#E4E8EC] shadow-xs overflow-hidden"
+          >
+            {/* Sapo Zone Header */}
+            <div className="bg-[#182538] text-white px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded bg-[#0088FF] flex items-center justify-center font-bold text-white text-xs shadow-xs shrink-0">
                   {zone.code || zone.name.replace('Khu ', '')}
                 </div>
                 <div>
-                  <h2 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                  <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
                     {zone.name}
                   </h2>
-                  <p className="text-xs text-slate-400">{zone.description || 'Ký túc xá công nhân'}</p>
+                  <p className="text-[11px] text-slate-400 hidden sm:block">
+                    {zone.description || 'Ký túc xá công nhân'}
+                  </p>
                 </div>
               </div>
 
-              {/* Zone Summary Badge */}
-              <div className="flex items-center gap-2 text-xs text-slate-300">
-                <span className="bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 font-medium">
-                  {blocks.length} Dãy • {zoneRooms.length} Phòng • {zoneWorkers.length}/{zoneMaxCapacity} người
+              {/* Thông tin nhanh số lượng & Nút Xóa Khu */}
+              <div className="flex items-center gap-2 text-xs flex-wrap">
+                <span className="bg-[#203046] text-slate-300 px-2.5 py-1 rounded border border-[#2B3F5B] font-medium">
+                  {allZoneBlocks.length} Dãy • {zoneRooms.length} Phòng • <strong className="text-emerald-400 font-bold">{zoneWorkers.length}</strong>/{zoneMaxCapacity} người
                 </span>
+
+                {onDeleteZone && (
+                  <button
+                    type="button"
+                    onClick={() => setZonePendingDelete(zone)}
+                    className="p-1 px-2 rounded bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-colors cursor-pointer flex items-center gap-1 font-medium text-[11px]"
+                    title={`Xóa ${zone.name}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Xóa {zone.name}</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Blocks Section */}
-            <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
-              {blocks.map((block) => {
-                const blockRooms = (block.rooms && block.rooms.length > 0) ? block.rooms : (rooms || []).filter((r) => r.blockId === block.id);
-                const blockWorkers = (workers || []).filter(w => w.blockId === block.id);
-                const blockCap = blockRooms.reduce((sum, r) => sum + (r.maxCapacity || 20), 0);
+            {/* THANH TAB CHỌN DÃY TRONG KHU (Sapo Horizontal Tab Style) */}
+            <div className="bg-[#FAFBFC] border-b border-[#E4E8EC] px-3 sm:px-4 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 hidden sm:inline">
+                Chọn Dãy:
+              </span>
+
+              {/* Tab Tất cả Dãy */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (onFilterBlock && selectedBlockId !== 'all') {
+                    onFilterBlock('all');
+                  }
+                  setActiveBlockByZone(prev => ({ ...prev, [zone.id]: 'all' }));
+                }}
+                className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  currentZoneBlockSelection === 'all'
+                    ? 'bg-[#0088FF] text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                }`}
+              >
+                Tất cả các dãy ({allZoneBlocks.length})
+              </button>
+
+              {/* Tabs từng Dãy */}
+              {allZoneBlocks.map((block) => {
+                const blockRooms = zoneRooms.filter(r => r.blockId === block.id);
+                const blockWorkers = zoneWorkers.filter(w => w.blockId === block.id);
+                const isSelected = currentZoneBlockSelection === block.id;
 
                 return (
-                  <div
+                  <button
                     key={block.id}
-                    className="bg-slate-50/80 rounded-2xl p-3 sm:p-4 border border-slate-200 space-y-3"
+                    type="button"
+                    onClick={() => {
+                      if (onFilterBlock && selectedBlockId !== 'all') {
+                        onFilterBlock(block.id);
+                      }
+                      setActiveBlockByZone(prev => ({ ...prev, [zone.id]: block.id }));
+                    }}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-[#0088FF] text-white shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                    }`}
                   >
-                    {/* Block Title Bar */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-2.5 gap-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
-                        <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                    <span>{block.name}</span>
+                    <span className={`text-[10px] px-1 py-0.2 rounded font-mono ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {blockWorkers.length} CN
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* DANH SÁCH PHÒNG THEO TỪNG DÃY */}
+            <div className="p-3 sm:p-5 space-y-6">
+              {visibleBlocks.map((block) => {
+                const blockRooms = zoneRooms.filter((r) => r.blockId === block.id);
+                const blockWorkers = zoneWorkers.filter((w) => w.blockId === block.id);
+
+                if (blockRooms.length === 0) return null;
+
+                return (
+                  <div key={block.id} className="space-y-3">
+                    {/* Dãy Title Header */}
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#0088FF]"></span>
+                        <h3 className="font-bold text-slate-800 text-sm">
                           {block.name}
                         </h3>
-                        <span className="text-[11px] text-slate-600 font-medium bg-slate-200/80 px-2.5 py-0.5 rounded-lg">
-                          {blockRooms.length} Phòng (Mỗi phòng tối đa 20 người)
+                        <span className="text-xs text-slate-500 font-medium">
+                          ({blockRooms.length} phòng, tiêu chuẩn 20 người/phòng)
                         </span>
                       </div>
 
                       <div className="text-xs text-slate-600 font-medium">
-                        Đang ở: <strong className="text-blue-700 font-bold">{blockWorkers.length}</strong> / {blockCap} chỗ
+                        Tổng cư dân: <strong className="text-slate-900 font-bold">{blockWorkers.length}</strong> người
                       </div>
                     </div>
 
-                    {/* Rooms Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {/* Sapo Room Grid Matrix */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                       {blockRooms.map((room) => {
                         const roomWorkers = workersByRoom.get(room.id) || [];
-                        const count = roomWorkers.length;
                         const maxCap = room.maxCapacity || 20;
-                        const percentage = Math.round((count / maxCap) * 100);
-                        const isFull = count >= maxCap;
-                        const isEmpty = count === 0;
-
-                        // Tìm kiếm không dấu
-                        const matchingWorkers = searchQuery.trim()
-                          ? roomWorkers.filter((w) =>
-                              matchVietnameseSearch(w.fullName, searchQuery) ||
-                              matchVietnameseSearch(w.code, searchQuery) ||
-                              matchVietnameseSearch(w.citizenId, searchQuery) ||
-                              matchVietnameseSearch(w.teamLeaderName, searchQuery) ||
-                              matchVietnameseSearch(w.teamLeaderPhone, searchQuery) ||
-                              matchVietnameseSearch(w.address, searchQuery)
-                            )
-                          : [];
-                        const hasSearchMatch = searchQuery.trim() && matchingWorkers.length > 0;
-
-                        // Màu sắc trạng thái
-                        let statusBadge = {
-                          text: `Còn ${maxCap - count} chỗ`,
-                          colorClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                          barClass: 'bg-emerald-500',
-                        };
-
-                        if (isFull) {
-                          statusBadge = {
-                            text: 'Đã đầy (20/20)',
-                            colorClass: 'bg-rose-50 text-rose-700 border-rose-200 font-bold',
-                            barClass: 'bg-rose-500',
-                          };
-                        } else if (count >= 16) {
-                          statusBadge = {
-                            text: `Sắp đầy (còn ${maxCap - count})`,
-                            colorClass: 'bg-amber-50 text-amber-700 border-amber-200',
-                            barClass: 'bg-amber-500',
-                          };
-                        } else if (isEmpty) {
-                          statusBadge = {
-                            text: 'Trống (0/20)',
-                            colorClass: 'bg-slate-100 text-slate-600 border-slate-200',
-                            barClass: 'bg-slate-300',
-                          };
-                        }
+                        const occupiedCount = roomWorkers.length;
+                        const remaining = Math.max(0, maxCap - occupiedCount);
+                        const isFull = occupiedCount >= maxCap;
+                        const isEmpty = occupiedCount === 0;
+                        const occupancyPercent = Math.min(100, Math.round((occupiedCount / maxCap) * 100));
 
                         return (
                           <div
                             key={room.id}
                             id={`room-card-${room.id}`}
-                            className={`bg-white rounded-2xl border p-3.5 flex flex-col justify-between transition-all duration-200 hover:shadow-md ${
-                              hasSearchMatch
-                                ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50/30'
-                                : 'border-slate-200 hover:border-slate-300'
+                            className={`bg-white rounded-lg border transition-all duration-150 flex flex-col justify-between hover:shadow-md cursor-pointer group ${
+                              isFull
+                                ? 'border-slate-300 hover:border-slate-400 bg-slate-50/50'
+                                : occupiedCount >= 18
+                                ? 'border-amber-300 hover:border-amber-500 bg-amber-50/20'
+                                : 'border-[#E4E8EC] hover:border-[#0088FF]'
                             }`}
+                            onClick={() => onSelectRoom(room)}
                           >
-                            {/* Card Header */}
-                            <div>
-                              <div className="flex items-center justify-between gap-1 mb-1.5">
-                                <div className="flex items-center gap-1.5">
-                                  <Bed className="w-4 h-4 text-blue-600" />
-                                  <span className="font-bold text-slate-800 text-sm">
-                                    {room.name}
-                                  </span>
-                                </div>
-                                <span className={`text-[11px] px-2 py-0.5 rounded-full border ${statusBadge.colorClass}`}>
-                                  {count}/{maxCap}
+                            {/* Card Top: Room Name & Status Tag (Sapo Style) */}
+                            <div className="p-3 border-b border-[#E4E8EC] flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-extrabold text-sm text-slate-800 group-hover:text-[#0088FF] transition-colors">
+                                  {room.name}
                                 </span>
                               </div>
 
-                              {/* Progress bar */}
-                              <div className="w-full bg-slate-100 rounded-full h-1.5 my-2 overflow-hidden">
-                                <div
-                                  className={`h-1.5 rounded-full transition-all duration-500 ${statusBadge.barClass}`}
-                                  style={{ width: `${Math.min(100, percentage)}%` }}
-                                ></div>
-                              </div>
-
-                              {/* Search match highlight if any */}
-                              {hasSearchMatch && (
-                                <div className="mb-2 p-1.5 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-700 flex items-center gap-1">
-                                  <Sparkles className="w-3 h-3 text-blue-600 shrink-0" />
-                                  <span className="font-semibold">
-                                    {matchingWorkers.length} khớp:
-                                  </span>
-                                  <span className="truncate max-w-[120px] font-medium">
-                                    {matchingWorkers.map(w => w.fullName).join(', ')}
-                                  </span>
-                                </div>
+                              {/* Sapo Room Tag */}
+                              {isFull ? (
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                  Đầy 20/20
+                                </span>
+                              ) : isEmpty ? (
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                  Trống (20 chỗ)
+                                </span>
+                              ) : (
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#EBF7EE] text-[#1E8E3E] border border-[#BDE8C6]">
+                                  Còn {remaining} chỗ
+                                </span>
                               )}
-
-                              {/* Occupant Avatars Preview */}
-                              <div className="my-2">
-                                <div className="text-[11px] text-slate-500 mb-1 flex items-center justify-between">
-                                  <span>Đang ở:</span>
-                                  <span className="font-semibold text-slate-700">{count} người</span>
-                                </div>
-
-                                {count === 0 ? (
-                                  <div className="py-2 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                    Chưa có người ở
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-wrap gap-1 items-center max-h-[56px] overflow-hidden">
-                                    {roomWorkers.slice(0, 10).map((worker) => {
-                                      const isMatched = searchQuery.trim() && (
-                                        matchVietnameseSearch(worker.fullName, searchQuery) ||
-                                        matchVietnameseSearch(worker.code, searchQuery) ||
-                                        matchVietnameseSearch(worker.citizenId, searchQuery)
-                                      );
-
-                                      return (
-                                        <button
-                                          key={worker.id}
-                                          onClick={() => onSelectWorker(worker)}
-                                          title={`Giường #${worker.bedNumber}: ${worker.fullName} (${worker.code}) - CCCD: ${worker.citizenId}`}
-                                          className={`w-7 h-7 rounded-full text-[11px] font-bold text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer touch-manipulation shadow-xs overflow-hidden ${
-                                            worker.avatarColor || 'bg-blue-500'
-                                          } ${isMatched ? 'ring-2 ring-yellow-400 scale-105' : ''}`}
-                                        >
-                                          {worker.photoUrl ? (
-                                            <img
-                                              src={worker.photoUrl}
-                                              alt={worker.fullName}
-                                              className="w-full h-full object-cover"
-                                            />
-                                          ) : (
-                                            worker.fullName.charAt(0)
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-
-                                    {count > 10 && (
-                                      <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded-full">
-                                        +{count - 10}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
                             </div>
 
-                            {/* Card Footer Actions */}
-                            <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 mt-1">
+                            {/* Card Body: Progress Bar & Bed Occupancy Matrix */}
+                            <div className="p-3 space-y-2.5">
+                              {/* Capacity Ratio & Bar */}
+                              <div>
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="text-slate-500 font-medium">Sĩ số lưu trú:</span>
+                                  <span className="font-bold text-slate-900">
+                                    {occupiedCount} / {maxCap} người
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                      isFull
+                                        ? 'bg-slate-500'
+                                        : occupancyPercent >= 80
+                                        ? 'bg-amber-500'
+                                        : 'bg-[#0088FF]'
+                                    }`}
+                                    style={{ width: `${occupancyPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* 20 Beds Preview Matrix (Dots) */}
+                              <div className="grid grid-cols-10 gap-1 pt-1">
+                                {Array.from({ length: 20 }).map((_, idx) => {
+                                  const bedNumber = idx + 1;
+                                  const workerInBed = roomWorkers.find(w => w.bedNumber === bedNumber);
+                                  const isOccupied = !!workerInBed;
+
+                                  return (
+                                    <div
+                                      key={bedNumber}
+                                      title={workerInBed ? `G.${bedNumber}: ${workerInBed.fullName}` : `G.${bedNumber}: Trống`}
+                                      className={`h-2.5 rounded-xs transition-colors ${
+                                        isOccupied
+                                          ? 'bg-[#0088FF]'
+                                          : 'bg-slate-200'
+                                      }`}
+                                    />
+                                  );
+                                })}
+                              </div>
+
+                              {/* Preview First 2 Workers */}
+                              {roomWorkers.length > 0 && (
+                                <div className="text-[11px] text-slate-500 truncate pt-1">
+                                  <span className="font-semibold text-slate-700">Đang ở: </span>
+                                  <span>{roomWorkers.slice(0, 2).map(w => w.fullName).join(', ')}</span>
+                                  {roomWorkers.length > 2 && <span> +{roomWorkers.length - 2} người</span>}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Footer: Sapo Action Buttons */}
+                            <div className="p-2 border-t border-[#E4E8EC] bg-[#FAFBFC] flex items-center justify-between gap-1.5">
                               <button
-                                id={`btn-view-room-${room.id}`}
-                                onClick={() => onSelectRoom(room)}
-                                className="flex-1 py-2 px-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 hover:text-slate-900 text-xs font-semibold rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer touch-manipulation min-h-[38px]"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectRoom(room);
+                                }}
+                                className="flex-1 py-1 px-2 rounded text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-[#D3D5D7] transition-colors cursor-pointer text-center"
                               >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>Chi tiết ({count})</span>
+                                Xem phòng
                               </button>
+
+                              {roomWorkers.length > 0 && onOpenIdCardsPrint && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenIdCardsPrint(room);
+                                  }}
+                                  title={`In / Xuất ảnh 2 mặt CCCD của ${roomWorkers.length} người trong ${room.name}`}
+                                  className="py-1 px-2 rounded text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <span>CCCD</span>
+                                </button>
+                              )}
 
                               {!isFull && (
                                 <button
-                                  id={`btn-add-worker-to-room-${room.id}`}
-                                  onClick={() => onAddWorkerToRoom(room)}
-                                  title="Thêm nhân viên vào phòng này"
-                                  className="p-2 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white rounded-xl transition-colors cursor-pointer border border-blue-200 hover:border-blue-600 touch-manipulation min-h-[38px] min-w-[38px] flex items-center justify-center"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onAddWorkerToRoom(room);
+                                  }}
+                                  className="py-1 px-2 rounded text-xs font-semibold text-white bg-[#0088FF] hover:bg-[#0070E0] transition-colors cursor-pointer flex items-center gap-1"
                                 >
-                                  <Plus className="w-4 h-4" />
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>+ Xếp</span>
                                 </button>
                               )}
                             </div>
@@ -304,6 +438,22 @@ export const RoomGridView: React.FC<RoomGridViewProps> = ({
           </div>
         );
       })}
+
+      {/* Modal xác nhận xóa Khu */}
+      {zonePendingDelete && (
+        <DeleteZoneModal
+          isOpen={!!zonePendingDelete}
+          zone={zonePendingDelete}
+          workers={workers}
+          onClose={() => setZonePendingDelete(null)}
+          onConfirmDelete={async (zoneId, workerHandling) => {
+            if (onDeleteZone) {
+              await onDeleteZone(zoneId, workerHandling);
+            }
+            setZonePendingDelete(null);
+          }}
+        />
+      )}
     </div>
   );
 };

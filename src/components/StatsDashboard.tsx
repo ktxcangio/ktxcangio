@@ -78,126 +78,125 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   const femaleCount = safeWorkers.filter(w => w.gender === 'Nữ').length;
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-12">
-      {/* Top Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+    <div className="space-y-4 pb-12">
+      {/* Sapo Top Metric KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white p-4 rounded-lg border border-[#E4E8EC] shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng công nhân đang ở</span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng công nhân</span>
+            <div className="w-8 h-8 rounded-md bg-[#E5F3FF] text-[#0088FF] flex items-center justify-center shrink-0">
               <Users className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1.5 sm:mt-2">
-            {totalWorkers} <span className="text-xs sm:text-sm font-normal text-slate-500">người</span>
+          <div className="text-2xl font-black text-slate-900 mt-2">
+            {totalWorkers} <span className="text-xs font-normal text-slate-500">người</span>
           </div>
-          <div className="text-[11px] sm:text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
-            <span className="text-blue-600 font-bold">Nam: {maleCount}</span>
+          <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+            <span className="text-[#0088FF] font-semibold">Nam: {maleCount}</span>
             <span>•</span>
-            <span className="text-rose-600 font-bold">Nữ: {femaleCount}</span>
+            <span className="text-pink-600 font-semibold">Nữ: {femaleCount}</span>
           </div>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4 rounded-lg border border-[#E4E8EC] shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng số phòng KTX</span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng số phòng</span>
+            <div className="w-8 h-8 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
               <Building className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1.5 sm:mt-2">
-            {rooms.length} <span className="text-xs sm:text-sm font-normal text-slate-500">phòng</span>
+          <div className="text-2xl font-black text-slate-900 mt-2">
+            {rooms.length} <span className="text-xs font-normal text-slate-500">phòng</span>
           </div>
-          <div className="text-[11px] sm:text-xs text-slate-500 mt-1 truncate">
-            {zones.length} Khu • Tối đa 20 người/phòng
+          <div className="text-xs text-slate-500 mt-1">
+            {zones.length} Phân khu • 20 người / phòng
           </div>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4 rounded-lg border border-[#E4E8EC] shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Trống / Tổng số chỗ</span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Chỗ còn trống</span>
+            <div className="w-8 h-8 rounded-md bg-[#EBF7EE] text-[#1E8E3E] flex items-center justify-center shrink-0">
               <Bed className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-emerald-600 mt-1.5 sm:mt-2">
-            {availableBeds} / {totalBeds} <span className="text-xs sm:text-sm font-normal text-slate-500">chỗ</span>
+          <div className="text-2xl font-black text-[#1E8E3E] mt-2">
+            {availableBeds} / {totalBeds} <span className="text-xs font-normal text-slate-500">giường</span>
           </div>
-          <div className="text-[11px] sm:text-xs text-emerald-700 font-medium mt-1 truncate flex items-center gap-1">
+          <div className="text-xs text-[#1E8E3E] font-medium mt-1 flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Sẵn sàng tiếp nhận thêm
           </div>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4 rounded-lg border border-[#E4E8EC] shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Tỷ lệ lấp đầy</span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tỷ lệ lấp đầy</span>
+            <div className="w-8 h-8 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
               <PieChart className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1.5 sm:mt-2">
+          <div className="text-2xl font-black text-slate-900 mt-2">
             {overallOccupancy}%
           </div>
           <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
             <div 
-              className="bg-blue-600 h-1.5 rounded-full" 
+              className="bg-[#0088FF] h-1.5 rounded-full" 
               style={{ width: `${overallOccupancy}%` }}
             ></div>
           </div>
         </div>
       </div>
 
-      {/* Báo cáo từng Khu */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/80">
-          <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-            Báo cáo Tình trạng Ký Túc Xá Theo Phân Khu (Khu A, B, C, D...)
+      {/* Sapo Report Table: Báo cáo từng Khu */}
+      <div className="bg-white rounded-lg border border-[#E4E8EC] shadow-xs overflow-hidden">
+        <div className="p-3.5 border-b border-[#E4E8EC] bg-[#FAFBFC]">
+          <h3 className="font-bold text-slate-800 text-sm">
+            Báo cáo Tình trạng KTX Theo Phân Khu (Khu A, B, C, D...)
           </h3>
-          <p className="text-[11px] sm:text-xs text-slate-500">
+          <p className="text-xs text-slate-500">
             Chi tiết số dãy, số phòng và tỷ lệ cư trú tại từng phân khu
           </p>
         </div>
 
-        {/* Desktop Table View */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-700">
-            <thead className="bg-slate-100 text-slate-700 font-semibold text-xs border-b border-slate-200">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead className="bg-[#FAFBFC] text-slate-600 font-bold uppercase tracking-wider border-b border-[#E4E8EC]">
               <tr>
-                <th className="py-3.5 px-4">Khu vực</th>
-                <th className="py-3.5 px-4">Số dãy</th>
-                <th className="py-3.5 px-4">Tổng số phòng</th>
-                <th className="py-3.5 px-4">Công nhân hiện tại</th>
-                <th className="py-3.5 px-4">Tổng số chỗ</th>
-                <th className="py-3.5 px-4">Còn trống</th>
-                <th className="py-3.5 px-4">Tỷ lệ lấp đầy</th>
-                <th className="py-3.5 px-4 text-center">Phòng đầy (20/20)</th>
+                <th className="py-3 px-4">Khu vực</th>
+                <th className="py-3 px-4">Số dãy</th>
+                <th className="py-3 px-4">Tổng số phòng</th>
+                <th className="py-3 px-4">Công nhân hiện tại</th>
+                <th className="py-3 px-4">Tổng số chỗ</th>
+                <th className="py-3 px-4">Còn trống</th>
+                <th className="py-3 px-4">Tỷ lệ lấp đầy</th>
+                <th className="py-3 px-4 text-center">Phòng đầy (20/20)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-[#E4E8EC]">
               {zoneStats.map((stat) => (
-                <tr key={stat.zone.id} className="hover:bg-slate-50/80">
+                <tr key={stat.zone.id} className="hover:bg-[#F9FAFB] transition-colors">
                   <td className="py-3 px-4">
                     <div className="font-bold text-slate-900">{stat.zone.name}</div>
-                    <div className="text-xs text-slate-500">{stat.zone.description}</div>
+                    <div className="text-[11px] text-slate-400">{stat.zone.description}</div>
                   </td>
-                  <td className="py-3 px-4 font-semibold">{stat.zone.blocks.length} Dãy</td>
-                  <td className="py-3 px-4 font-semibold">{stat.roomsCount} Phòng</td>
-                  <td className="py-3 px-4 font-bold text-blue-600">{stat.workersCount} người</td>
-                  <td className="py-3 px-4 text-slate-600">{stat.bedsCount} chỗ</td>
-                  <td className="py-3 px-4 font-semibold text-emerald-700">{stat.bedsCount - stat.workersCount} chỗ</td>
+                  <td className="py-3 px-4 font-semibold">{stat.zone.blocks?.length || 0} dãy</td>
+                  <td className="py-3 px-4">{stat.roomsCount} phòng</td>
+                  <td className="py-3 px-4 font-bold text-[#0088FF]">{stat.workersCount} người</td>
+                  <td className="py-3 px-4">{stat.bedsCount} chỗ</td>
+                  <td className="py-3 px-4 text-[#1E8E3E] font-semibold">{Math.max(0, stat.bedsCount - stat.workersCount)} chỗ</td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs">{stat.occupancy}%</span>
-                      <div className="w-20 bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-blue-600 h-1.5 rounded-full"
+                      <span className="font-bold w-9">{stat.occupancy}%</span>
+                      <div className="w-20 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-[#0088FF] h-1.5 rounded-full" 
                           style={{ width: `${stat.occupancy}%` }}
                         ></div>
                       </div>
                     </div>
                   </td>
                   <td className="py-3 px-4 text-center">
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700">
                       {stat.fullRooms} phòng
                     </span>
                   </td>
@@ -206,73 +205,36 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
             </tbody>
           </table>
         </div>
-
-        {/* Mobile Cards for Zones */}
-        <div className="md:hidden divide-y divide-slate-100 p-3 space-y-3">
-          {zoneStats.map((stat) => (
-            <div key={stat.zone.id} className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">{stat.zone.name}</h4>
-                  <span className="text-[11px] text-slate-500">{stat.zone.blocks.length} Dãy • {stat.roomsCount} Phòng</span>
-                </div>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                  stat.occupancy >= 90 ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'
-                }`}>
-                  {stat.occupancy}% lấp đầy
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-center text-xs pt-1">
-                <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <div className="text-slate-400 text-[10px]">Đang ở</div>
-                  <div className="font-bold text-blue-600 text-sm">{stat.workersCount}</div>
-                </div>
-                <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <div className="text-slate-400 text-[10px]">Còn trống</div>
-                  <div className="font-bold text-emerald-600 text-sm">{stat.bedsCount - stat.workersCount}</div>
-                </div>
-                <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <div className="text-slate-400 text-[10px]">Phòng 20/20</div>
-                  <div className="font-bold text-rose-600 text-sm">{stat.fullRooms}</div>
-                </div>
-              </div>
-
-              <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden mt-1">
-                <div
-                  className="bg-blue-600 h-1.5 rounded-full"
-                  style={{ width: `${stat.occupancy}%` }}
-                ></div>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* Phân bổ theo Tổ trưởng */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex items-center gap-2 mb-3 sm:mb-4">
-          <UserCheck className="w-5 h-5 text-blue-600 shrink-0" />
-          <h4 className="font-bold text-slate-900 text-sm sm:text-base">Phân Bổ Nhân Viên Theo Tổ Trưởng</h4>
+      {/* Sapo Report Table: Phân bố theo Tổ trưởng */}
+      <div className="bg-white rounded-lg border border-[#E4E8EC] shadow-xs overflow-hidden">
+        <div className="p-3.5 border-b border-[#E4E8EC] bg-[#FAFBFC]">
+          <h3 className="font-bold text-slate-800 text-sm">
+            Phân bố nhân sự theo Tổ Trưởng
+          </h3>
+          <p className="text-xs text-slate-500">
+            Tổng hợp số lượng công nhân do từng tổ trưởng phụ trách lưu trú
+          </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {teamLeaderList.map(([leader, count]) => {
-            const pct = totalWorkers > 0 ? Math.round((count / totalWorkers) * 100) : 0;
-            return (
-              <div key={leader} className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-semibold">
-                  <span className="text-slate-800 truncate">{leader}</span>
-                  <span className="text-blue-700 font-bold">{count} người</span>
+
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {teamLeaderList.map(([leader, count]) => (
+            <div key={leader} className="p-3 rounded-lg border border-[#E4E8EC] bg-[#FAFBFC] flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-[#E5F3FF] text-[#0088FF] flex items-center justify-center font-bold text-xs shrink-0">
+                  {leader.charAt(0)}
                 </div>
-                <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className="bg-blue-600 h-1.5 rounded-full"
-                    style={{ width: `${pct}%` }}
-                  ></div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 truncate">{leader}</div>
+                  <div className="text-[11px] text-slate-500">Tổ quản lý công nhân</div>
                 </div>
               </div>
-            );
-          })}
+              <span className="text-xs font-bold px-2 py-0.5 rounded bg-white border border-[#D3D5D7] text-[#0088FF] shrink-0">
+                {count} CN
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

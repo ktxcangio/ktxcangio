@@ -22,7 +22,13 @@ import { Worker, Zone, Room, QrParsedCCCD } from '../types';
 import { AVATAR_COLORS } from '../data/dormitoryData';
 import { QrScannerModal } from './QrScannerModal';
 import { CameraCaptureModal } from './CameraCaptureModal';
-import { fileToDataUrl, compressCardImage } from '../utils/imageUtils';
+import { 
+  fileToDataUrl, 
+  compressCardImage, 
+  HD_CARD_WIDTH, 
+  HD_CARD_HEIGHT, 
+  HD_CARD_QUALITY 
+} from '../utils/imageUtils';
 
 interface WorkerModalProps {
   isOpen: boolean;
@@ -118,7 +124,7 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
       setBlockId(worker.blockId || '');
       setRoomId(worker.roomId || '');
       setBedNumber(worker.bedNumber || 1);
-      setLockerNumber(worker.lockerNumber || worker.bedNumber || 1);
+      setLockerNumber(worker.lockerNumber !== undefined ? worker.lockerNumber : 1);
       setStartDate(worker.startDate || new Date().toISOString().split('T')[0]);
       setNotes(worker.notes || '');
     } else {
@@ -146,20 +152,19 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
       const targetRoomId = effectiveDefaultRoomId || targetBlock?.rooms?.[0]?.id || '';
       setRoomId(targetRoomId);
 
-      // Tìm vị trí giường trống đầu tiên
+      // Tìm vị trí giường trống hoặc tự động cấp số giường tiếp theo (không giới hạn)
       const roomOccupants = (existingWorkers || []).filter(w => w.roomId === targetRoomId);
       const occupiedBeds = new Set(roomOccupants.map(w => w.bedNumber));
       let chosenBed = initialBedNumber || 1;
       if (!initialBedNumber || occupiedBeds.has(initialBedNumber)) {
-        for (let i = 1; i <= 20; i++) {
-          if (!occupiedBeds.has(i)) {
-            chosenBed = i;
-            break;
-          }
+        let b = 1;
+        while (occupiedBeds.has(b)) {
+          b++;
         }
+        chosenBed = b;
       }
       setBedNumber(chosenBed);
-      setLockerNumber(chosenBed);
+      setLockerNumber(1);
       setStartDate(new Date().toISOString().split('T')[0]);
       setNotes('');
     }
@@ -167,13 +172,18 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
     setQrNotification(null);
   }, [isOpen, worker, defaultZoneId, defaultBlockId, defaultRoomId, effectiveDefaultRoomId, initialBedNumber, zones, existingWorkers]);
 
-  // Xử lý ảnh thẻ CCCD tải lên từ input file
+  // Xử lý ảnh thẻ CCCD tải lên từ input file chuẩn HD Sắc Nét
   const handleCardFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const rawData = await fileToDataUrl(file);
-      const compressed = await compressCardImage(rawData, 850, 540, 0.85);
+      const compressed = await compressCardImage(
+        rawData, 
+        HD_CARD_WIDTH, 
+        HD_CARD_HEIGHT, 
+        HD_CARD_QUALITY
+      );
       if (side === 'front') {
         setIdCardFrontUrl(compressed);
       } else {
@@ -220,8 +230,11 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
   const roomOccupants = (existingWorkers || []).filter(
     w => w.roomId === roomId && (!worker || w.id !== worker.id)
   );
-  const occupiedBedNumbers = new Set(roomOccupants.map(w => w.bedNumber));
-  const isRoomFull = roomOccupants.length >= (currentRoom?.maxCapacity || 20);
+  const occupiedBedNumbers = new Set<number>(roomOccupants.map(w => Number(w.bedNumber)));
+  // Xác định tổng số giường hiển thị: ít nhất là sức chứa phòng, hoặc số giường cao nhất đã dùng + 1
+  const occupiedBedList: number[] = Array.from(occupiedBedNumbers);
+  const maxBedUsed = Math.max(0, ...occupiedBedList, Number(bedNumber) || 0);
+  const displayedBedCount = Math.max(currentRoom?.bedCount || 20, maxBedUsed, roomOccupants.length + 1);
 
   // Xử lý khi Quét mã QR CCCD thành công
   const handleQrScanSuccess = (qrData: QrParsedCCCD) => {
@@ -256,15 +269,9 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
       return;
     }
 
-    // Kiểm tra trùng giường
-    if (occupiedBedNumbers.has(bedNumber)) {
-      setErrorMsg(`Giường #${bedNumber} trong ${currentRoom?.name || 'phòng này'} đã có người nằm. Vui lòng chọn giường khác.`);
-      return;
-    }
-
-    // Kiểm tra sức chứa tối đa 20 người
-    if (!isEditing && isRoomFull) {
-      setErrorMsg(`Phòng ${currentRoom?.name} đã đủ tối đa ${currentRoom?.maxCapacity || 20} người. Vui lòng chọn phòng khác.`);
+    // Kiểm tra trùng giường (nếu người dùng nhập/chọn giường cụ thể)
+    if (bedNumber > 0 && occupiedBedNumbers.has(bedNumber)) {
+      setErrorMsg(`Vị trí Giường #${bedNumber} trong ${currentRoom?.name || 'phòng này'} đã có người được xếp. Vui lòng chọn giường khác.`);
       return;
     }
 
@@ -410,15 +417,19 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
 
             {/* PHẦN ẢNH THẺ CĂN CƯỚC CÔNG DÂN (CCCD) */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-4 h-4 text-blue-600" />
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                     Ảnh Thẻ Căn Cước Công Dân (CCCD)
                   </h4>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-full shadow-2xs">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    Chuẩn HD 1080p
+                  </span>
                 </div>
                 <span className="text-[11px] text-slate-500 font-medium">
-                  Chụp hoặc tải ảnh 2 mặt thẻ CCCD
+                  Độ phân giải cao 1536×970px — rõ nét từng chữ số &amp; chi tiết
                 </span>
               </div>
 
@@ -434,7 +445,7 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
                     {idCardFrontUrl ? (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Check className="w-3 h-3" />
-                        Đã chụp
+                        Đã chụp HD
                       </span>
                     ) : (
                       <span className="text-[10px] text-slate-400 font-medium">Chưa có ảnh</span>
@@ -450,12 +461,16 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
                           alt="Mặt trước CCCD"
                           className="w-full h-full object-cover"
                         />
+                        <div className="absolute top-2 left-2 bg-slate-900/80 text-amber-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-amber-400/30 backdrop-blur-xs flex items-center gap-1 shadow-sm pointer-events-none">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          <span>HD</span>
+                        </div>
                         <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                           <button
                             type="button"
-                            onClick={() => setPreviewModalImage({ url: idCardFrontUrl, title: 'Ảnh Mặt Trước Thẻ CCCD' })}
+                            onClick={() => setPreviewModalImage({ url: idCardFrontUrl, title: 'Ảnh Mặt Trước Thẻ CCCD (Chuẩn HD Sắc Nét)' })}
                             className="p-2 bg-white/90 hover:bg-white text-slate-900 rounded-xl transition-all shadow-md cursor-pointer"
-                            title="Xem phóng to"
+                            title="Xem phóng to chi tiết HD"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -519,7 +534,7 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
                     {idCardBackUrl ? (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Check className="w-3 h-3" />
-                        Đã chụp
+                        Đã chụp HD
                       </span>
                     ) : (
                       <span className="text-[10px] text-slate-400 font-medium">Chưa có ảnh</span>
@@ -535,12 +550,16 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
                           alt="Mặt sau CCCD"
                           className="w-full h-full object-cover"
                         />
+                        <div className="absolute top-2 left-2 bg-slate-900/80 text-amber-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-amber-400/30 backdrop-blur-xs flex items-center gap-1 shadow-sm pointer-events-none">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          <span>HD</span>
+                        </div>
                         <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                           <button
                             type="button"
-                            onClick={() => setPreviewModalImage({ url: idCardBackUrl, title: 'Ảnh Mặt Sau Thẻ CCCD' })}
+                            onClick={() => setPreviewModalImage({ url: idCardBackUrl, title: 'Ảnh Mặt Sau Thẻ CCCD (Chuẩn HD Sắc Nét)' })}
                             className="p-2 bg-white/90 hover:bg-white text-slate-900 rounded-xl transition-all shadow-md cursor-pointer"
-                            title="Xem phóng to"
+                            title="Xem phóng to chi tiết HD"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -764,7 +783,7 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
               <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
                 <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                   <Building className="w-3.5 h-3.5 text-blue-600" />
-                  Vị Trí Cư Trú (Khu &gt; Dãy &gt; Phòng &gt; Giường &gt; Tủ đồ)
+                  Vị Trí Cư Trú (Khu &gt; Dãy &gt; Phòng &gt; Giường &amp; Số tủ)
                 </h4>
                 <span className="text-[11px] text-slate-500">Mỗi phòng tối đa 20 người</span>
               </div>
@@ -824,19 +843,19 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
 
               {/* Chọn Giường & Tủ đồ */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-xs flex-wrap gap-2">
                   <span className="font-bold text-slate-800 flex items-center gap-1.5">
                     <Bed className="w-4 h-4 text-blue-600" />
-                    Chọn Vị Trí Giường Ngủ (1 - {currentRoom?.bedCount || 20})
+                    Vị Trí Giường Ngủ (Số giường đã có người: {occupiedBedNumbers.size})
                   </span>
-                  <span className={`font-semibold ${isRoomFull ? 'text-rose-600 font-bold' : 'text-emerald-700'}`}>
-                    Hiện tại: {roomOccupants.length}/{currentRoom?.maxCapacity || 20} người
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Hiện tại: {roomOccupants.length} người (Không giới hạn)
                   </span>
                 </div>
 
-                {/* Grid 20 giường ngủ để click chọn trực quan */}
-                <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
-                  {Array.from({ length: currentRoom?.bedCount || 20 }, (_, idx) => {
+                {/* Grid các giường ngủ để click chọn trực quan */}
+                <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 max-h-[160px] overflow-y-auto pr-1">
+                  {Array.from({ length: displayedBedCount }, (_, idx) => {
                     const bedNum = idx + 1;
                     const isOccupied = occupiedBedNumbers.has(bedNum);
                     const isSelected = bedNumber === bedNum;
@@ -848,10 +867,9 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
                         disabled={isOccupied}
                         onClick={() => {
                           setBedNumber(bedNum);
-                          setLockerNumber(bedNum);
                         }}
                         title={isOccupied ? `Giường #${bedNum} đã có người` : `Chọn giường #${bedNum}`}
-                        className={`h-11 rounded-xl text-xs font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
+                        className={`h-10 rounded-xl text-xs font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
                           isOccupied
                             ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed line-through'
                             : isSelected
@@ -859,26 +877,54 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
                             : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-400 hover:bg-blue-50'
                         }`}
                       >
-                        <span className="text-[10px] leading-tight">G</span>
+                        <span className="text-[9px] leading-tight">G</span>
                         <span className="text-xs">{bedNum}</span>
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Số Tủ Đồ Cá Nhân
+                      Số Giường (Nhập số tự do)
                     </label>
                     <input
                       type="number"
                       min={1}
-                      max={currentRoom?.lockerCount || 30}
-                      value={lockerNumber}
-                      onChange={(e) => setLockerNumber(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl outline-none font-bold text-slate-800"
+                      value={bedNumber}
+                      onChange={(e) => {
+                        const val = Math.max(1, Number(e.target.value) || 1);
+                        setBedNumber(val);
+                      }}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl outline-none font-bold text-blue-700 focus:border-blue-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Tổng số tủ cá nhân
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={lockerNumber}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          setLockerNumber(isNaN(val) ? 0 : Math.max(0, val));
+                        }}
+                        placeholder="VD: 1"
+                        className="w-full px-3 py-1.5 pr-14 text-sm bg-white border border-slate-300 rounded-xl outline-none font-bold text-slate-800 focus:border-blue-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">
+                        cái tủ
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Tổng số lượng tủ đồ (VD: 1 cái, 2 cái), không đánh số từng tủ
+                    </p>
                   </div>
 
                   <div>
@@ -889,7 +935,7 @@ export const WorkerModal: React.FC<WorkerModalProps> = ({
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl outline-none text-slate-800"
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl outline-none text-slate-800 focus:border-blue-500"
                     />
                   </div>
                 </div>
