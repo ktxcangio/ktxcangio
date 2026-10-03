@@ -15,7 +15,8 @@ import {
   ArrowLeft,
   Trash2,
   CreditCard,
-  Printer
+  Printer,
+  Box
 } from 'lucide-react';
 import { Zone, Block, Room, Worker } from '../types';
 import { matchVietnameseSearch } from '../utils/vietnamese';
@@ -293,6 +294,12 @@ export const RoomGridView: React.FC<RoomGridViewProps> = ({
                         const isEmpty = occupiedCount === 0;
                         const occupancyPercent = Math.min(100, Math.round((occupiedCount / maxCap) * 100));
 
+                        const roomBeds = room.bedCount || 20;
+                        const roomLockers = room.lockerCount || 20;
+                        const assignedLockers = roomWorkers.reduce((sum, w) => sum + (w.lockerNumber !== undefined ? w.lockerNumber : 1), 0);
+                        const emptyBeds = Math.max(0, roomBeds - occupiedCount);
+                        const emptyLockers = Math.max(0, roomLockers - assignedLockers);
+
                         return (
                           <div
                             key={room.id}
@@ -373,6 +380,18 @@ export const RoomGridView: React.FC<RoomGridViewProps> = ({
                                     />
                                   );
                                 })}
+                              </div>
+
+                              {/* Thống kê nhanh Giường & Tủ đồ */}
+                              <div className="grid grid-cols-2 gap-1.5 pt-1.5 text-[11px] bg-slate-50 p-1.5 rounded-md border border-slate-100">
+                                <div className="flex items-center gap-1.5 min-w-0" title={`Tổng số giường: ${roomBeds}, đang ở: ${occupiedCount}, còn trống: ${emptyBeds}`}>
+                                  <Bed className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  <span className="truncate">G: <strong>{occupiedCount}</strong>/{roomBeds}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 min-w-0" title={`Tổng số tủ đồ: ${roomLockers}, đã cấp: ${assignedLockers}, còn trống: ${emptyLockers}`}>
+                                  <Box className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span className="truncate">Tủ: <strong>{assignedLockers}</strong>/{roomLockers}</span>
+                                </div>
                               </div>
 
                               {/* Preview First 2 Workers */}

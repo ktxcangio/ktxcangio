@@ -19,7 +19,8 @@ import {
   Briefcase,
   ChevronRight,
   FolderTree,
-  Trash2
+  Trash2,
+  Box
 } from 'lucide-react';
 import { Zone, Room, Worker } from '../types';
 import { DeleteZoneModal } from './DeleteZoneModal';
@@ -100,6 +101,10 @@ export const OverviewDiagrams: React.FC<OverviewDiagramsProps> = ({
     const zoneMale = zoneWorkers.filter(w => w.gender === 'Nam').length;
     const zoneFemale = zoneWorkers.filter(w => w.gender === 'Nữ').length;
 
+    const zoneLockers = zoneRooms.reduce((sum, r) => sum + (r.lockerCount || 20), 0);
+    const zoneAssignedLockers = zoneWorkers.reduce((sum, w) => sum + (w.lockerNumber !== undefined ? w.lockerNumber : 1), 0);
+    const zoneAvailableLockers = Math.max(0, zoneLockers - zoneAssignedLockers);
+
     return {
       zone,
       blocksCount: zone.blocks?.length || 0,
@@ -107,6 +112,9 @@ export const OverviewDiagrams: React.FC<OverviewDiagramsProps> = ({
       workersCount: zoneWorkers.length,
       bedsCount: zoneBeds,
       availableBeds: Math.max(0, zoneBeds - zoneWorkers.length),
+      lockersCount: zoneLockers,
+      assignedLockers: zoneAssignedLockers,
+      availableLockers: zoneAvailableLockers,
       occupancy,
       fullRooms,
       emptyRooms,
@@ -358,6 +366,33 @@ export const OverviewDiagrams: React.FC<OverviewDiagramsProps> = ({
                         }`}
                         style={{ width: `${Math.min(100, stat.occupancy)}%` }}
                       ></div>
+                    </div>
+                  </div>
+
+                  {/* Thống kê Tổng số Giường & Số Tủ đồ của Khu */}
+                  <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-200">
+                    <div className="bg-blue-50/70 p-2 rounded-lg border border-blue-100 flex items-center gap-2">
+                      <Bed className="w-4 h-4 text-blue-600 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[11px] text-blue-950 font-bold truncate">
+                          {stat.workersCount}/{stat.bedsCount} giường
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate">
+                          Trống: <span className="text-[#1E8E3E] font-bold">{stat.availableBeds}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-50/70 p-2 rounded-lg border border-amber-100 flex items-center gap-2">
+                      <Box className="w-4 h-4 text-amber-600 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[11px] text-amber-950 font-bold truncate">
+                          {stat.assignedLockers}/{stat.lockersCount} tủ đồ
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate">
+                          Trống: <span className="text-[#1E8E3E] font-bold">{stat.availableLockers}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

@@ -769,6 +769,7 @@ export default function App() {
                       workers={workers}
                       zones={zones}
                       rooms={rooms}
+                      onSelectRoom={(room) => setSelectedRoom(room)}
                     />
                   )}
                 </>

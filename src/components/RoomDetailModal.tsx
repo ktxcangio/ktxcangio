@@ -21,7 +21,8 @@ import {
   Briefcase,
   Shield,
   CreditCard,
-  Printer
+  Printer,
+  Box
 } from 'lucide-react';
 import { formatPhoneNumber } from '../utils/vietnamese';
 
@@ -69,6 +70,9 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
   // Số lượng ô giường hiển thị tự động co giãn theo số công nhân thực tế
   const maxBedNumberUsed = Math.max(0, ...Array.from(bedMap.keys()));
   const totalBeds = Math.max(room.bedCount || 20, maxBedNumberUsed, count + 1);
+  const totalLockers = room.lockerCount || 20;
+  const assignedLockers = safeWorkers.reduce((sum, w) => sum + (w.lockerNumber !== undefined ? w.lockerNumber : 1), 0);
+  const availableLockers = Math.max(0, totalLockers - assignedLockers);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 lg:p-6">
@@ -166,6 +170,41 @@ export const RoomDetailModal: React.FC<RoomDetailModalProps> = ({
               }`}
               style={{ width: `${Math.min(100, percentage)}%` }}
             ></div>
+          </div>
+
+          {/* Quick Bed & Locker Stats for this Room */}
+          <div className="grid grid-cols-2 gap-2 mt-2.5">
+            <div className="bg-white p-2.5 rounded-xl border border-blue-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <Bed className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 font-medium">Tổng số giường:</div>
+                  <div className="text-xs font-bold text-slate-900">{totalBeds} giường</div>
+                </div>
+              </div>
+              <div className="text-right text-[11px]">
+                <div className="text-slate-600">Đang nằm: <strong className="text-slate-900">{count}</strong></div>
+                <div className="text-[#1E8E3E] font-bold">Trống {Math.max(0, totalBeds - count)}</div>
+              </div>
+            </div>
+
+            <div className="bg-white p-2.5 rounded-xl border border-amber-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <Box className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 font-medium">Tổng số tủ đồ:</div>
+                  <div className="text-xs font-bold text-slate-900">{totalLockers} cái tủ</div>
+                </div>
+              </div>
+              <div className="text-right text-[11px]">
+                <div className="text-slate-600">Đã cấp: <strong className="text-slate-900">{assignedLockers}</strong></div>
+                <div className="text-[#1E8E3E] font-bold">Trống {availableLockers}</div>
+              </div>
+            </div>
           </div>
         </div>
 
