@@ -75,7 +75,7 @@ export const SapoSidebar: React.FC<SapoSidebarProps> = ({
 
       {/* Main Clean Dark Sidebar */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-[#111827] text-slate-300 transition-all duration-200 select-none border-r border-slate-800 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-[#111827] text-slate-300 transition-all duration-200 select-none border-r border-slate-800 print:hidden ${
           isMobileOpen
             ? 'translate-x-0 w-60'
             : '-translate-x-full lg:translate-x-0 ' + (isCollapsed ? 'w-[64px]' : 'w-56')

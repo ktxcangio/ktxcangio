@@ -618,7 +618,7 @@ export default function App() {
       />
 
       {/* Main Sapo App Workspace */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-200 print:hidden ${
         isSidebarCollapsed ? 'lg:pl-[68px]' : 'lg:pl-60'
       }`}>
         {/* Sapo Top Header */}
