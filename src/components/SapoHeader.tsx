@@ -10,8 +10,7 @@ import {
   LayoutGrid,
   Users,
   BarChart3,
-  Cloud,
-  HardDrive
+  Cloud
 } from 'lucide-react';
 import { ViewMode } from '../types';
 
@@ -30,7 +29,7 @@ interface SapoHeaderProps {
   onOpenStructureManager: () => void;
   onOpenCategorySidebar?: () => void;
   onViewChange?: (view: ViewMode) => void;
-  onOpenGoogleDriveSync?: () => void;
+  onOpenFirebaseModal?: () => void;
 }
 
 export const SapoHeader: React.FC<SapoHeaderProps> = ({
@@ -43,7 +42,7 @@ export const SapoHeader: React.FC<SapoHeaderProps> = ({
   onExportCSV,
   onResetData,
   onViewChange,
-  onOpenGoogleDriveSync,
+  onOpenFirebaseModal,
 }) => {
   const occupancyRate = totalRooms > 0 ? Math.round((totalWorkers / (totalRooms * 20)) * 100) : 0;
   const remainingBeds = Math.max(0, (totalRooms * 20) - totalWorkers);
@@ -116,41 +115,30 @@ export const SapoHeader: React.FC<SapoHeaderProps> = ({
             <span>Lấp đầy <strong>{occupancyRate}%</strong></span>
           </div>
 
-          {/* Cloud Sync Status */}
+          {/* Cloud Sync Status - Google Firebase */}
           <button
-            onClick={onOpenGoogleDriveSync}
-            title="Xem chi tiết đồng bộ Cloud & Google Drive"
-            className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-600 font-medium px-2 py-1 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+            onClick={onOpenFirebaseModal}
+            title="Xem chi tiết trạng thái lưu trữ trên Google Firebase Cloud"
+            className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-700 font-medium px-2.5 py-1.5 rounded-md bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/90 transition-colors cursor-pointer shadow-2xs"
           >
             {syncStatus === 'syncing' ? (
               <>
-                <RefreshCw className="w-3 h-3 text-amber-500 animate-spin" />
-                <span className="text-amber-700">Đang đồng bộ</span>
+                <RefreshCw className="w-3 h-3 text-amber-600 animate-spin" />
+                <span className="text-amber-800 font-semibold">Firebase đang đồng bộ</span>
               </>
             ) : syncStatus === 'offline' ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                <span className="text-slate-500">Ngoại tuyến</span>
+                <span className="text-slate-600">Firebase ngoại tuyến</span>
               </>
             ) : (
               <>
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="text-emerald-700 font-semibold">Đồng bộ Cloud</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-amber-900 font-semibold">Google Firebase</span>
+                <span className="text-[10px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">Cloud</span>
               </>
             )}
           </button>
-
-          {/* Google Drive / Sao lưu Button */}
-          {onOpenGoogleDriveSync && (
-            <button
-              onClick={onOpenGoogleDriveSync}
-              title="Lưu trữ & Đồng bộ Google Drive / Sao lưu dữ liệu KTX"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
-            >
-              <HardDrive className="w-3.5 h-3.5 text-blue-600" />
-              <span className="hidden sm:inline">Google Drive</span>
-            </button>
-          )}
 
           {/* Export CSV Button */}
           <button

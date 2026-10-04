@@ -9,7 +9,7 @@ import {
   ChevronRight, 
   X,
   Plus,
-  HardDrive
+  Database
 } from 'lucide-react';
 import { ViewMode } from '../types';
 
@@ -25,7 +25,7 @@ interface SapoSidebarProps {
   onToggleCollapse: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
-  onOpenGoogleDriveSync?: () => void;
+  onOpenFirebaseModal?: () => void;
 }
 
 export const SapoSidebar: React.FC<SapoSidebarProps> = ({
@@ -40,7 +40,7 @@ export const SapoSidebar: React.FC<SapoSidebarProps> = ({
   onToggleCollapse,
   isMobileOpen,
   onCloseMobile,
-  onOpenGoogleDriveSync,
+  onOpenFirebaseModal,
 }) => {
   const menuItems = [
     {
@@ -187,18 +187,18 @@ export const SapoSidebar: React.FC<SapoSidebarProps> = ({
               )}
             </button>
 
-            {onOpenGoogleDriveSync && (
+            {onOpenFirebaseModal && (
               <button
                 onClick={() => {
-                  onOpenGoogleDriveSync();
+                  onOpenFirebaseModal();
                   if (isMobileOpen) onCloseMobile();
                 }}
-                title="Lưu trữ & Đồng bộ Google Drive / Sao lưu"
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer group text-left text-blue-400 hover:text-blue-300 hover:bg-slate-800/80"
+                title="Lưu trữ đám mây Google Firebase Firestore"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer group text-left text-amber-400 hover:text-amber-300 hover:bg-slate-800/80"
               >
-                <HardDrive className="w-4 h-4 shrink-0 text-blue-400 group-hover:text-blue-300" />
+                <Database className="w-4 h-4 shrink-0 text-amber-400 group-hover:text-amber-300" />
                 {(!isCollapsed || isMobileOpen) && (
-                  <span className="truncate">Lưu Google Drive</span>
+                  <span className="truncate">Google Firebase</span>
                 )}
               </button>
             )}
@@ -206,7 +206,11 @@ export const SapoSidebar: React.FC<SapoSidebarProps> = ({
         </nav>
 
         {/* Sidebar Footer: Cloud Sync Status */}
-        <div className="border-t border-slate-800/80 p-2.5 shrink-0 bg-[#0d131f]">
+        <div 
+          onClick={onOpenFirebaseModal}
+          title="Bấm để xem chi tiết lưu trữ Google Firebase"
+          className="border-t border-slate-800/80 p-2.5 shrink-0 bg-[#0d131f] cursor-pointer hover:bg-slate-800/50 transition-colors"
+        >
           <div className={`flex items-center gap-2 text-[11px] ${
             isCollapsed && !isMobileOpen ? 'justify-center' : 'px-1'
           }`}>
@@ -214,8 +218,8 @@ export const SapoSidebar: React.FC<SapoSidebarProps> = ({
               syncStatus === 'synced' ? 'bg-emerald-400' : syncStatus === 'syncing' ? 'bg-amber-400 animate-pulse' : 'bg-slate-500'
             }`} />
             {(!isCollapsed || isMobileOpen) && (
-              <span className="text-slate-400 text-[11px] truncate">
-                {syncStatus === 'synced' ? 'Realtime Firestore' : syncStatus === 'syncing' ? 'Đang đồng bộ...' : 'Ngoại tuyến'}
+              <span className="text-slate-300 text-[11px] truncate font-medium">
+                {syncStatus === 'synced' ? 'Google Firebase' : syncStatus === 'syncing' ? 'Đang đồng bộ...' : 'Firebase ngoại tuyến'}
               </span>
             )}
           </div>
