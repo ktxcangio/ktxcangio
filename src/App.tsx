@@ -207,6 +207,80 @@ export default function App() {
   const [workerToViewProfile, setWorkerToViewProfile] = useState<Worker | null>(null);
   const [roomForIdCardsModal, setRoomForIdCardsModal] = useState<Room | null>(null);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState<boolean>(false);
+  const [shortcutToast, setShortcutToast] = useState<{ message: string; key: string } | null>(null);
+
+  // Lắng nghe phím tắt A, B, C, D, 1, 2, 3, 4, 0, Esc để chuyển nhanh các Khu KTX
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Bỏ qua khi người dùng đang nhập liệu trong ô input / textarea
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      const tag = target.tagName ? target.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || target.isContentEditable) {
+        return;
+      }
+
+      // Bỏ qua khi đang mở modal popup
+      if (
+        isWorkerModalOpen ||
+        isStructureModalOpen ||
+        isFirebaseModalOpen ||
+        workerToEdit ||
+        workerToTransfer ||
+        workerToViewProfile ||
+        roomForIdCardsModal ||
+        selectedRoom
+      ) {
+        return;
+      }
+
+      const key = e.key.toUpperCase();
+
+      // Phím 0 hoặc Escape hoặc T: Quay về Tổng quan KTX
+      if (e.key === '0' || e.key === 'Escape' || (e.altKey && key === '0') || (!e.ctrlKey && !e.metaKey && (e.key === 't' || e.key === 'T'))) {
+        if (filters.zoneId !== 'all') {
+          handleFilterChange({ zoneId: 'all', blockId: 'all' });
+          setShortcutToast({ message: 'Đã quay về Tổng quan KTX', key: e.key === 'Escape' ? 'Esc' : '0' });
+          setTimeout(() => setShortcutToast(null), 2000);
+        }
+        return;
+      }
+
+      // Kiểm tra phím A, B, C, D hoặc 1, 2, 3, 4
+      if (!e.ctrlKey && !e.metaKey) {
+        let matchedZone: Zone | undefined;
+
+        // Khớp theo chữ cái A, B, C, D...
+        if (['A', 'B', 'C', 'D', 'E', 'F'].includes(key)) {
+          matchedZone = zones.find(z => 
+            (z.code && z.code.toUpperCase() === key) ||
+            z.name.toUpperCase().includes(`KHU ${key}`) ||
+            z.id.toUpperCase().endsWith(`-${key.toLowerCase()}`)
+          );
+        }
+        // Khớp theo số 1, 2, 3, 4...
+        else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) {
+          const index = parseInt(e.key, 10) - 1;
+          if (zones[index]) {
+            matchedZone = zones[index];
+          }
+        }
+
+        if (matchedZone) {
+          e.preventDefault();
+          handleFilterChange({ zoneId: matchedZone.id, blockId: 'all' });
+          setShortcutToast({ 
+            message: `Đã chuyển đến ${matchedZone.name}`, 
+            key: matchedZone.code || key 
+          });
+          setTimeout(() => setShortcutToast(null), 2000);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [zones, filters.zoneId, isWorkerModalOpen, isStructureModalOpen, isFirebaseModalOpen, workerToEdit, workerToTransfer, workerToViewProfile, roomForIdCardsModal, selectedRoom]);
 
   // 4. Lọc danh sách công nhân theo Search (không dấu) & Filter
   const filteredWorkers = useMemo(() => {
@@ -905,6 +979,20 @@ export default function App() {
         onRestoreData={handleRestoreData}
         syncStatus={syncStatus}
       />
+
+      {/* Floating Shortcut Toast Notification */}
+      {shortcutToast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
+          <div className="bg-[#111827] text-white px-3.5 py-2.5 rounded-xl shadow-2xl border border-slate-700 flex items-center gap-3">
+            <div className="w-6 h-6 rounded-md bg-[#0088FF] text-white flex items-center justify-center font-black font-mono text-xs shadow-xs">
+              {shortcutToast.key}
+            </div>
+            <div className="text-xs font-bold text-slate-100">
+              {shortcutToast.message}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

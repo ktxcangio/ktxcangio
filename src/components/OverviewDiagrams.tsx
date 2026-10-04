@@ -20,7 +20,9 @@ import {
   ChevronRight,
   FolderTree,
   Trash2,
-  Box
+  Box,
+  Zap,
+  Keyboard
 } from 'lucide-react';
 import { Zone, Room, Worker } from '../types';
 import { DeleteZoneModal } from './DeleteZoneModal';
@@ -176,6 +178,62 @@ export const OverviewDiagrams: React.FC<OverviewDiagramsProps> = ({
         )}
       </div>
 
+      {/* 1.1 Thanh phím tắt chuyển nhanh Khu A, B, C, D ngay tại Tổng quan KTX */}
+      <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-white p-3 sm:p-3.5 rounded-xl border border-blue-200/80 shadow-2xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-[#0088FF] text-white flex items-center justify-center font-bold shadow-xs">
+            <Zap className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                Phím tắt chuyển nhanh các Khu
+              </span>
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold border border-blue-200">
+                <Keyboard className="w-3 h-3" />
+                Bấm phím A · B · C · D
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Nhấn phím chữ tương ứng trên bàn phím hoặc click nút bên cạnh để xem ngay sơ đồ phòng
+            </p>
+          </div>
+        </div>
+
+        {/* Danh sách các nút phím tắt Khu A, B, C, D */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {safeZones.map((zone, idx) => {
+            const codeLetter = zone.code?.toUpperCase() || zone.name.replace(/[^a-zA-Z0-9]/g, '').slice(-1).toUpperCase() || String(idx + 1);
+            const zoneWorkers = safeWorkers.filter(w => w.zoneId === zone.id).length;
+            const zoneRooms = safeRooms.filter(r => r.zoneId === zone.id);
+            const zoneBeds = zoneRooms.reduce((sum, r) => sum + (r.bedCount || 20), 0);
+            const isFull = zoneBeds > 0 && zoneWorkers >= zoneBeds;
+
+            return (
+              <button
+                key={zone.id}
+                type="button"
+                onClick={() => onSelectZone(zone.id)}
+                className="group px-3 py-1.5 rounded-lg border border-slate-200 hover:border-[#0088FF] bg-white hover:bg-blue-50/70 text-slate-800 hover:text-[#0088FF] font-semibold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                title={`Nhấn phím "${codeLetter}" hoặc Alt+${codeLetter} trên bàn phím để xem sơ đồ ${zone.name}`}
+              >
+                <kbd className="w-5 h-5 rounded bg-slate-100 group-hover:bg-[#0088FF] group-hover:text-white border border-slate-300 group-hover:border-[#0088FF] text-[11px] font-black font-mono flex items-center justify-center transition-colors shadow-2xs">
+                  {codeLetter}
+                </kbd>
+                <span className="font-bold">{zone.name}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-medium ${
+                  isFull 
+                    ? 'bg-rose-50 text-rose-700' 
+                    : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-800'
+                }`}>
+                  {zoneWorkers}/{zoneBeds}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 2. Top 4 Sapo KPI Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Card 1: Tổng công nhân */}
@@ -314,6 +372,9 @@ export const OverviewDiagrams: React.FC<OverviewDiagramsProps> = ({
                           <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
                             {stat.blocksCount} Dãy
                           </span>
+                          <kbd className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 group-hover:bg-blue-100 text-slate-600 group-hover:text-blue-800 border border-slate-300 group-hover:border-blue-300 transition-colors">
+                            Phím {z.code || z.name.replace('Khu ', '')}
+                          </kbd>
                         </div>
                         <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
                           {z.description || 'Ký túc xá công nhân'}

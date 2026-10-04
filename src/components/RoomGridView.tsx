@@ -115,22 +115,32 @@ export const RoomGridView: React.FC<RoomGridViewProps> = ({
           {zones.length > 1 && onSelectZone && (
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
               <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider shrink-0 mr-1 hidden lg:inline">
-                Chuyển Khu:
+                Phím tắt Khu:
               </span>
-              {zones.map((z) => (
-                <button
-                  key={z.id}
-                  type="button"
-                  onClick={() => onSelectZone(z.id)}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                    z.id === selectedZoneId
-                      ? 'bg-[#0088FF] text-white shadow-2xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {z.name}
-                </button>
-              ))}
+              {zones.map((z, idx) => {
+                const codeLetter = z.code?.toUpperCase() || z.name.replace(/[^a-zA-Z0-9]/g, '').slice(-1).toUpperCase() || String(idx + 1);
+                const isCurrent = z.id === selectedZoneId;
+                return (
+                  <button
+                    key={z.id}
+                    type="button"
+                    onClick={() => onSelectZone(z.id)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isCurrent
+                        ? 'bg-[#0088FF] text-white shadow-2xs ring-1 ring-[#0088FF]'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                    title={`Chuyển đến ${z.name} (Phím tắt: ${codeLetter})`}
+                  >
+                    <kbd className={`px-1 py-0.2 rounded text-[10px] font-mono ${
+                      isCurrent ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-300'
+                    }`}>
+                      {codeLetter}
+                    </kbd>
+                    <span>{z.name}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
